@@ -415,6 +415,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </span>
 
                 <div className="neu-flat rounded-[22px] overflow-hidden divide-y divide-slate-100/80">
+                  {/* App Appearance */}
+                  <button
+                    onClick={() => setCurrentSection('appearance')}
+                    className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-amber-500">
+                        <Palette className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">App Appearance</p>
+                        <p className="text-[11px] text-slate-500">Theme & Accent Controls</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </button>
+
                   {/* Account & Security */}
                   <button
                     onClick={() => setCurrentSection('account_security')}
