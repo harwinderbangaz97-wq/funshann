@@ -202,11 +202,14 @@ function AppContent() {
     if (currentUser && currentUser.id) {
       getUserFollowingsFromFirestore(currentUser.id).then((followings) => {
         if (followings && followings.length >= 0) {
-          setCurrentUser(prev => ({
-            ...prev,
-            following: followings,
-            followingCount: followings.length,
-          }));
+          setCurrentUser(prev => {
+            if (prev.followingCount === followings.length) return prev;
+            return {
+              ...prev,
+              following: followings,
+              followingCount: followings.length,
+            };
+          });
         }
       }).catch(console.warn);
     }
@@ -219,12 +222,12 @@ function AppContent() {
     return true;
   });
 
-  const handleFinishSplash = () => {
+  const handleFinishSplash = useCallback(() => {
     setShowSplash(false);
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.setItem('funshann_splash_shown', 'true');
     }
-  };
+  }, []);
 
   const handleAuthenticate = (user: Partial<User>) => {
     handleUpdateCurrentUser(user);
@@ -2070,7 +2073,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('App ErrorBoundary caught error:', error, errorInfo);
+    console.error('App ErrorBoundary caught error:', error);
+    console.error('Component Stack:', errorInfo.componentStack);
   }
 
   handleReload = () => {
@@ -2084,24 +2088,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="min-h-screen w-full bg-[#f4f7fb] flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-4 text-[#5B9DFF] shadow-md">
-            <Check className="w-8 h-8" />
-          </div>
-          <h1 className="text-xl font-bold text-slate-800 mb-2 font-['Outfit']">Funshann</h1>
-          <p className="text-sm text-slate-500 max-w-xs mb-6">
-            Something unexpected occurred. Tap below to refresh the experience.
-          </p>
-          <button
-            type="button"
-            onClick={this.handleReload}
-            className="px-6 py-3 rounded-2xl neu-active-blue text-white font-bold text-sm shadow-lg hover:brightness-105 active:scale-95 transition-all"
-          >
-            Reload Application
-          </button>
-        </div>
-      );
+      return null;
     }
     return this.props.children;
   }
