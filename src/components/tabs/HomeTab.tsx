@@ -28,6 +28,8 @@ interface HomeTabProps {
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
+  onRefresh?: () => Promise<void>;
+  isRefreshing?: boolean;
 }
 
 export const HomeTab: React.FC<HomeTabProps> = ({
@@ -54,8 +56,35 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onLoadMore,
   hasMore = false,
   isLoadingMore = false,
+  onRefresh,
+  isRefreshing = false,
 }) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+  const [pullDownDistance, setPullDownDistance] = useState(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+      if (window.scrollY === 0) {
+        touchStartY.current = e.touches[0].clientY;
+      }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY.current > 0 && window.scrollY === 0) {
+      const currentY = e.touches[0].clientY;
+      const pull = Math.max(0, currentY - touchStartY.current);
+      setPullDownDistance(Math.min(pull, 100));
+      if (pull > 80 && onRefresh && !isRefreshing) {
+        onRefresh().then(() => setPullDownDistance(0));
+        touchStartY.current = 0;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setPullDownDistance(0);
+    touchStartY.current = 0;
+  };
 
   useEffect(() => {
     if (!onLoadMore || !hasMore || isLoadingMore) return;
@@ -80,7 +109,19 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   }, [onLoadMore, hasMore, isLoadingMore]);
 
   return (
-    <div className="w-full pb-28 pt-1">
+    <div 
+        className="w-full pb-28 pt-1"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to refresh indicator */}
+      {isRefreshing && (
+          <div className="w-full py-4 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-[#5B9DFF]" />
+          </div>
+      )}
+      
       <StoriesSection
         stories={stories}
         currentUser={currentUser}

@@ -42,6 +42,7 @@ import { SettingsModal, SettingsSection } from './components/SettingsModal';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { PermissionAndMediaProvider, usePermissionAndMedia } from './context/PermissionAndMediaContext';
 import { LanguageProvider, useTranslation } from './context/LanguageContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { AndroidGestureBack } from './components/AndroidGestureBack';
 import { SplashScreen } from './components/SplashScreen';
 import { WelcomeAuthScreen } from './components/WelcomeAuthScreen';
@@ -137,28 +138,8 @@ const LoadingSpinner = () => (
 );
 
 function AppContent() {
-  const {
-    navState,
-    goBack,
-    navigateToTab,
-    openUserProfile,
-    popUserProfile,
-    openChatThread,
-    closeChatThread,
-    openStoryViewer,
-    closeStoryViewer,
-    openComments,
-    closeComments,
-    openShareSheet,
-    closeShareSheet,
-    openNotifications,
-    closeNotifications,
-    openSettings,
-    closeSettings,
-    openPostPreview,
-    closePostPreview,
-    canGoBack,
-  } = useNavigation();
+  const { navState, goBack, navigateToTab, openUserProfile, popUserProfile, openChatThread, closeChatThread, openStoryViewer, closeStoryViewer, openComments, closeComments, openShareSheet, closeShareSheet, openNotifications, closeNotifications, openSettings, closeSettings, openPostPreview, closePostPreview, canGoBack } = useNavigation();
+  const { user, loading } = useAuth();
 
   const [currentUser, setCurrentUser] = useState<User>(() => {
     try {
@@ -245,10 +226,7 @@ function AppContent() {
     }
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-
   const handleAuthenticate = (user: Partial<User>) => {
-    setIsAuthenticated(true);
     handleUpdateCurrentUser(user);
   };
 
@@ -326,7 +304,25 @@ function AppContent() {
   const [isLoadingMorePosts, setIsLoadingMorePosts] = useState<boolean>(false);
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [isCreatingStory, setIsCreatingStory] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    // Re-fetch posts - assuming we want the latest from Firestore
+    try {
+        const freshPosts = await getPostsFromFirestore(15);
+        if (freshPosts) {
+            setPosts(freshPosts);
+            setHasMorePosts(true);
+        }
+        showToast('Feed updated!');
+    } catch (err) {
+        console.error('Refresh error:', err);
+        showToast('Failed to refresh feed');
+    } finally {
+        setIsRefreshing(false);
+    }
+  };
 
   // Lazy loading / Infinite scroll pagination for older posts
   const handleLoadMorePosts = useCallback(async () => {
@@ -383,7 +379,6 @@ function AppContent() {
     // 1. Initialize Firebase Auth Session and listen for changes
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setIsAuthenticated(true);
         try {
           const remoteUser = await getUserProfileFromFirestore(user.uid);
           if (remoteUser) {
@@ -417,7 +412,6 @@ function AppContent() {
           console.error("Auth state change profile fetch error:", err);
         }
       } else {
-        setIsAuthenticated(false);
       }
     });
 
@@ -1761,15 +1755,15 @@ function AppContent() {
   return (
     <>
       <AnimatePresence>
-        {showSplash && (
+        {(showSplash || loading) && (
           <SplashScreen onFinish={handleFinishSplash} />
         )}
       </AnimatePresence>
 
-      {!showSplash && !isAuthenticated ? (
+      {!showSplash && !loading && !user ? (
         <WelcomeAuthScreen theme={theme} onAuthenticate={handleAuthenticate} />
       ) : (
-        !showSplash && (
+        !showSplash && !loading && (
           <DeviceFrame theme={theme} onThemeChange={handleUpdateTheme}>
       {/* Android Native Edge Swipe Back Handler & Visual Indicator */}
       <AndroidGestureBack onBack={goBack} canGoBack={canGoBack} />
@@ -1830,6 +1824,8 @@ function AppContent() {
               onLoadMore={handleLoadMorePosts}
               hasMore={hasMorePosts}
               isLoadingMore={isLoadingMorePosts}
+              onRefresh={handleRefresh}
+              isRefreshing={isRefreshing}
             />
           )}
 
