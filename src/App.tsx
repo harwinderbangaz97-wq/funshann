@@ -232,19 +232,16 @@ function AppContent() {
   }, [currentUser?.id]);
 
   const [showSplash, setShowSplash] = useState<boolean>(() => {
-    try {
-      return !sessionStorage.getItem('funshann_splash_shown');
-    } catch {
-      return true;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('funshann_splash_shown') === 'true') {
+      return false;
     }
+    return true;
   });
 
   const handleFinishSplash = () => {
     setShowSplash(false);
-    try {
+    if (typeof sessionStorage !== 'undefined') {
       sessionStorage.setItem('funshann_splash_shown', 'true');
-    } catch (e) {
-      console.warn('Failed to set splash shown in sessionStorage:', e);
     }
   };
 
