@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { X, Send, Heart, CheckCircle2, MoreHorizontal, Flag, SmilePlus } from 'lucide-react';
+import { X, Send, Heart, CheckCircle2, MoreHorizontal, Flag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, User, Comment } from '../types';
 import { UniversalReportModal } from './UniversalReportModal';
-import { StickerPickerModal } from './StickerPickerModal';
-import { addRecentSticker } from '../utils/stickerUtils';
 import { formatRelativeTime, formatDetailed12HourTime } from '../services/timeUtils';
 
 interface CommentsModalProps {
@@ -30,7 +28,6 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
   const [likedComments, setLikedComments] = useState<Record<string, boolean>>({});
   const [selectedCommentForReport, setSelectedCommentForReport] = useState<Comment | null>(null);
   const [openCommentMenuId, setOpenCommentMenuId] = useState<string | null>(null);
-  const [showCommentStickerModal, setShowCommentStickerModal] = useState(false);
 
   if (!isOpen || !post) return null;
 
@@ -258,7 +255,7 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
             />
           )}
 
-          {/* Slightly Larger, Clean Comments Input Field (Requirement 1) */}
+          {/* Clean Comments Input Field */}
           <form
             onSubmit={handleSubmit}
             className="pt-3 flex items-center gap-2.5 border-t border-slate-100/90"
@@ -278,18 +275,9 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Write a comment..."
-                className="w-full text-sm h-12 pl-4 pr-14 rounded-full neu-inset text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/40"
+                className="w-full text-sm h-12 pl-4 pr-12 rounded-full neu-inset text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/40"
               />
               <div className="absolute right-1.5 flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setShowCommentStickerModal(true)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-[#5B9DFF] hover:bg-slate-100 transition cursor-pointer"
-                  title="Open sticker picker"
-                  aria-label="Open sticker picker"
-                >
-                  <SmilePlus className="w-4 h-4" />
-                </button>
                 <motion.button
                   type="submit"
                   disabled={!commentText.trim()}
@@ -306,20 +294,6 @@ export const CommentsModal: React.FC<CommentsModalProps> = ({
               </div>
             </div>
           </form>
-
-          {/* COMMENT Sticker Picker Modal */}
-          <StickerPickerModal
-            isOpen={showCommentStickerModal}
-            onClose={() => setShowCommentStickerModal(false)}
-            onSelectSticker={(sticker) => {
-              onAddComment(post.id, sticker);
-              addRecentSticker(sticker);
-              if (onShowToast) {
-                onShowToast('Comment posted! 💬');
-              }
-              setShowCommentStickerModal(false);
-            }}
-          />
         </motion.div>
       </div>
     </AnimatePresence>

@@ -5,6 +5,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  getDocsFromCache,
   deleteDoc,
   updateDoc,
   query,
@@ -83,22 +84,27 @@ export const subscribeToChatMessages = (
 
         callback(messages);
       },
-      (error) => {
+      async (error) => {
+        console.warn(`Firestore subscribeToChatMessages (${chatId}) notice:`, error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, `chats/${chatId}/messages`);
+          const cacheSnap = await getDocsFromCache(q);
+          const messages: Message[] = cacheSnap.docs.map((docSnap) => {
+            const data = docSnap.data();
+            return normalizeMessage(docSnap.id, {
+              ...data,
+              isDelivered: true,
+            });
+          });
+          if (messages.length > 0) callback(messages);
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
 
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, `chats/${chatId}/messages`);
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn(`Firestore subscribeToChatMessages (${chatId}) notice:`, err);
     return () => {};
   }
 };
@@ -389,21 +395,37 @@ export const subscribeToAllChatRooms = (
         });
         callback(rooms);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToAllChatRooms notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'chats');
+          const cacheSnap = await getDocsFromCache(q);
+          const rooms: Array<{ id: string; participantIds: string[]; participants: string[]; lastMessage?: any; updatedAt?: any }> = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              const pIds = Array.isArray(data.participantIds)
+                ? data.participantIds
+                : Array.isArray(data.participants)
+                ? data.participants
+                : [];
+              rooms.push({
+                id: docSnap.id,
+                participantIds: pIds,
+                participants: pIds,
+                lastMessage: data.lastMessage,
+                updatedAt: data.updatedAt,
+              });
+            }
+          });
+          if (rooms.length > 0) callback(rooms);
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'chats');
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToAllChatRooms notice:', err);
     return () => {};
   }
 };

@@ -33,6 +33,9 @@ const SearchPeopleViewComponent: React.FC<SearchPeopleViewProps> = ({
     { id: 'following', label: t('search_filter_following') },
   ];
 
+  const currentUserId = currentUser ? ((currentUser as any).uid || currentUser.id) : null;
+  const currentUserUid = (currentUser as any)?.uid || null;
+
   // Dynamically check if currentUser.following array includes user.id
   const checkIsFollowing = (u: User): boolean => {
     if (!currentUser || !currentUser.id) return Boolean(u.isFollowing);
@@ -41,15 +44,30 @@ const SearchPeopleViewComponent: React.FC<SearchPeopleViewProps> = ({
     if ((currentUser.followingCount ?? 0) === 0 && followingList.length === 0) {
       return Boolean(u.isFollowing);
     }
-    return followingList.includes(u.id) || Boolean(u.isFollowing);
+    const targetId = (u as any).uid || u.id;
+    return followingList.includes(u.id) || (targetId && followingList.includes(targetId)) || Boolean(u.isFollowing);
   };
 
-  // Filter out duplicate users using unique user IDs (u.id) and exclude current logged in user
+  // Filter out duplicate users using unique user IDs (u.uid || u.id) and exclude current logged in user
   const uniqueUsersMap = new Map<string, User>();
   users.forEach((u) => {
-    if (u && u.id && u.id !== currentUser?.id) {
+    if (!u) return;
+    const targetUserId = (u as any).uid || u.id;
+    if (!targetUserId) return;
+
+    // Check if this user is the current logged-in user using unique identity
+    if (
+      currentUserId &&
+      (targetUserId === currentUserId ||
+        u.id === currentUserId ||
+        (currentUserUid && (targetUserId === currentUserUid || u.id === currentUserUid)))
+    ) {
+      return; // Exclude current user from all search, discover, and suggestion lists
+    }
+
+    if (!uniqueUsersMap.has(targetUserId)) {
       const isFollowingDynamic = checkIsFollowing(u);
-      uniqueUsersMap.set(u.id, {
+      uniqueUsersMap.set(targetUserId, {
         ...u,
         isFollowing: isFollowingDynamic,
       });

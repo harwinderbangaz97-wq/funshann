@@ -53,6 +53,8 @@ import {
   syncPostToFirestore,
   deletePostFromFirestore,
   updatePostInFirestore,
+  togglePostReactionInFirestore,
+  hydratePostForUser,
   subscribeToPosts,
   syncStoryToFirestore,
   recordStoryViewInFirestore,
@@ -385,7 +387,7 @@ function AppContent() {
     try {
         const freshPosts = await getPostsFromFirestore(15);
         if (freshPosts) {
-            setPosts(freshPosts);
+            setPosts(freshPosts.map((p) => hydratePostForUser(p, currentUser)));
             setHasMorePosts(true);
         }
         showToast('Feed updated!');
@@ -411,7 +413,7 @@ function AppContent() {
           prevPosts.forEach((p) => map.set(p.id, p));
           olderPosts.forEach((p) => {
             if (p && p.id) {
-              map.set(p.id, p);
+              map.set(p.id, hydratePostForUser(p, currentUser));
             }
           });
           return Array.from(map.values()).sort((a, b) => {
@@ -429,7 +431,7 @@ function AppContent() {
     } finally {
       setIsLoadingMorePosts(false);
     }
-  }, [isLoadingMorePosts, hasMorePosts]);
+  }, [isLoadingMorePosts, hasMorePosts, currentUser]);
 
   // App Permissions State from central PermissionAndMediaContext
   const { permissionsState, setAllPermissions } = usePermissionAndMedia();
@@ -504,7 +506,7 @@ function AppContent() {
           prevPosts.forEach((p) => map.set(p.id, p));
           initialPosts.forEach((p) => {
             if (p && p.id) {
-              map.set(p.id, p);
+              map.set(p.id, hydratePostForUser(p, currentUser));
             }
           });
           return Array.from(map.values()).sort((a, b) => {
@@ -553,10 +555,10 @@ function AppContent() {
             const map = new Map<string, Post>();
             // Keep local in-memory posts
             prevPosts.forEach((p) => map.set(p.id, p));
-            // Overlay remote posts from Firestore
+            // Overlay remote posts from Firestore hydrated for currentUser
             remotePosts.forEach((p) => {
               if (p && p.id) {
-                map.set(p.id, p);
+                map.set(p.id, hydratePostForUser(p, currentUser));
               }
             });
 
@@ -758,6 +760,11 @@ function AppContent() {
     }
   };
 
+  // Re-hydrate all posts whenever currentUser identity changes (e.g. login/logout or profile load)
+  useEffect(() => {
+    setPosts((prevPosts) => prevPosts.map((p) => hydratePostForUser(p, currentUser)));
+  }, [currentUser?.id, (currentUser as any)?.uid]);
+
   // Floating Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -766,141 +773,191 @@ function AppContent() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Handle Like or Dislike Reaction on a Post with Automated Community Safety Removal
-  const handleReaction = (postId: string, reaction: 'like' | 'dislike') => {
-    let removedPostInfo: { post: Post; authorId: string; wasRemoved: boolean } | null = null;
+  // Handle Like or Dislike Reaction on a Post (Atomic Firestore transaction with user-specific arrays)
+  const handleReaction = async (postId: string, reaction: 'like' | 'dislike') => {
+    const userId = currentUser.id || (currentUser as any).uid;
+    if (!userId) {
+      showToast('Please log in to react');
+      return;
+    }
 
+    // 1. Optimistic Local State Update for instantaneous UI response
     setPosts((prevPosts) => {
-      const target = prevPosts.find((p) => p.id === postId);
-      if (!target) return prevPosts;
+      return prevPosts.map((target) => {
+        if (target.id !== postId) return target;
 
-      let nextLikesCount = target.likesCount;
-      let nextDislikesCount = target.dislikesCount || 0;
-      let nextIsLiked = target.isLiked || false;
-      let nextIsDisliked = target.isDisliked || false;
-      let nextUserReaction = target.userReaction;
-      let nextLikes: string[] = Array.isArray(target.likes) ? [...target.likes] : [];
-      let nextDislikes: string[] = Array.isArray(target.dislikes) ? [...target.dislikes] : [];
+        const currentLikes = Array.isArray(target.likes)
+          ? target.likes.filter((id) => typeof id === 'string' && id.trim())
+          : [];
+        const currentDislikes = Array.isArray(target.dislikes)
+          ? target.dislikes.filter((id) => typeof id === 'string' && id.trim())
+          : [];
 
-      if (reaction === 'like') {
-        if (target.isLiked) {
-          // User already liked -> remove like
-          nextLikesCount = Math.max(0, nextLikesCount - 1);
-          nextIsLiked = false;
-          nextUserReaction = null;
-          nextLikes = nextLikes.filter((id) => id !== currentUser.id);
-        } else {
-          // User wants to like
-          nextLikesCount = nextLikesCount + 1;
-          nextIsLiked = true;
-          if (!nextLikes.includes(currentUser.id)) {
-            nextLikes.push(currentUser.id);
+        const likesSet = new Set(currentLikes);
+        const dislikesSet = new Set(currentDislikes);
+
+        const isCurrentlyLiked = likesSet.has(userId);
+        const isCurrentlyDisliked = dislikesSet.has(userId);
+
+        if (reaction === 'like') {
+          if (isCurrentlyLiked) {
+            likesSet.delete(userId);
+          } else {
+            likesSet.add(userId);
+            dislikesSet.delete(userId);
           }
-          // If was disliked, remove dislike
-          if (target.isDisliked) {
-            nextDislikesCount = Math.max(0, nextDislikesCount - 1);
-            nextIsDisliked = false;
-            nextDislikes = nextDislikes.filter((id) => id !== currentUser.id);
+        } else if (reaction === 'dislike') {
+          if (isCurrentlyDisliked) {
+            dislikesSet.delete(userId);
+          } else {
+            dislikesSet.add(userId);
+            likesSet.delete(userId);
           }
-          nextUserReaction = 'like';
         }
-      } else if (reaction === 'dislike') {
-        if (target.isDisliked) {
-          // User already disliked -> remove dislike
-          nextDislikesCount = Math.max(0, nextDislikesCount - 1);
-          nextIsDisliked = false;
-          nextUserReaction = null;
-          nextDislikes = nextDislikes.filter((id) => id !== currentUser.id);
-        } else {
-          // User wants to dislike
-          nextDislikesCount = nextDislikesCount + 1;
-          nextIsDisliked = true;
-          if (!nextDislikes.includes(currentUser.id)) {
-            nextDislikes.push(currentUser.id);
-          }
-          // If was liked, remove like
-          if (target.isLiked) {
-            nextLikesCount = Math.max(0, nextLikesCount - 1);
-            nextIsLiked = false;
-            nextLikes = nextLikes.filter((id) => id !== currentUser.id);
-          }
-          nextUserReaction = 'dislike';
-        }
-      }
 
-      // Disabled auto-removal logic as requested
-      const shouldAutoRemove = false;
+        const nextLikes = Array.from(likesSet);
+        const nextDislikes = Array.from(dislikesSet);
+        const nextLikesCount = nextLikes.length;
+        const nextDislikesCount = nextDislikes.length;
+        const nextIsLiked = nextLikes.includes(userId);
+        const nextIsDisliked = nextDislikes.includes(userId);
+        const nextUserReaction: 'like' | 'dislike' | null = nextIsLiked
+          ? 'like'
+          : nextIsDisliked
+          ? 'dislike'
+          : null;
 
-      // Sync reaction directly to Firestore
-      updatePostInFirestore(postId, {
-        likesCount: nextLikesCount,
-        dislikesCount: nextDislikesCount,
-        isLiked: nextIsLiked,
-        isDisliked: nextIsDisliked,
-        userReaction: nextUserReaction,
-        likes: nextLikes,
-        dislikes: nextDislikes,
-      }).catch(console.warn);
-
-      // Update post in state
-      return prevPosts.map((p) => {
-        if (p.id === postId) {
-          return {
-            ...p,
-            likesCount: nextLikesCount,
-            dislikesCount: nextDislikesCount,
-            isLiked: nextIsLiked,
-            isDisliked: nextIsDisliked,
-            userReaction: nextUserReaction,
-            likes: nextLikes,
-            dislikes: nextDislikes,
-          };
-        }
-        return p;
+        return {
+          ...target,
+          likes: nextLikes,
+          dislikes: nextDislikes,
+          likesCount: nextLikesCount,
+          dislikesCount: nextDislikesCount,
+          isLiked: nextIsLiked,
+          isDisliked: nextIsDisliked,
+          userReaction: nextUserReaction,
+        };
       });
     });
 
-    // Handle post removal notification and cleanup if auto-removed
-    if (removedPostInfo && removedPostInfo.wasRemoved) {
-      const { post: removedPost, authorId } = removedPostInfo;
-
-      // Close post preview if this post was currently open
-      if (navState.previewPost && navState.previewPost.id === postId) {
-        closePostPreview();
+    // Also update previewPost and activeCommentPost if currently open
+    if (navState.previewPost && navState.previewPost.id === postId) {
+      const p = navState.previewPost;
+      const pLikes = new Set(
+        Array.isArray(p.likes)
+          ? p.likes.filter((id) => typeof id === 'string' && id.trim())
+          : []
+      );
+      const pDislikes = new Set(
+        Array.isArray(p.dislikes)
+          ? p.dislikes.filter((id) => typeof id === 'string' && id.trim())
+          : []
+      );
+      if (reaction === 'like') {
+        if (pLikes.has(userId)) {
+          pLikes.delete(userId);
+        } else {
+          pLikes.add(userId);
+          pDislikes.delete(userId);
+        }
+      } else {
+        if (pDislikes.has(userId)) {
+          pDislikes.delete(userId);
+        } else {
+          pDislikes.add(userId);
+          pLikes.delete(userId);
+        }
       }
+      const nLikes = Array.from(pLikes);
+      const nDislikes = Array.from(pDislikes);
+      const nIsLiked = nLikes.includes(userId);
+      const nIsDisliked = nDislikes.includes(userId);
+      openPostPreview({
+        ...p,
+        likes: nLikes,
+        dislikes: nDislikes,
+        likesCount: nLikes.length,
+        dislikesCount: nDislikes.length,
+        isLiked: nIsLiked,
+        isDisliked: nIsDisliked,
+        userReaction: nIsLiked ? 'like' : nIsDisliked ? 'dislike' : null,
+      });
+    }
 
-      // Update author postsCount if it was currentUser
-      if (authorId === currentUser.id) {
-        setCurrentUser((prev) => ({
-          ...prev,
-          postsCount: Math.max(0, prev.postsCount - 1),
-        }));
+    if (navState.activeCommentPost && navState.activeCommentPost.id === postId) {
+      const c = navState.activeCommentPost;
+      const cLikes = new Set(
+        Array.isArray(c.likes)
+          ? c.likes.filter((id) => typeof id === 'string' && id.trim())
+          : []
+      );
+      const cDislikes = new Set(
+        Array.isArray(c.dislikes)
+          ? c.dislikes.filter((id) => typeof id === 'string' && id.trim())
+          : []
+      );
+      if (reaction === 'like') {
+        if (cLikes.has(userId)) {
+          cLikes.delete(userId);
+        } else {
+          cLikes.add(userId);
+          cDislikes.delete(userId);
+        }
+      } else {
+        if (cDislikes.has(userId)) {
+          cDislikes.delete(userId);
+        } else {
+          cDislikes.add(userId);
+          cLikes.delete(userId);
+        }
       }
+      const nLikes = Array.from(cLikes);
+      const nDislikes = Array.from(cDislikes);
+      const nIsLiked = nLikes.includes(userId);
+      const nIsDisliked = nDislikes.includes(userId);
+      openComments({
+        ...c,
+        likes: nLikes,
+        dislikes: nDislikes,
+        likesCount: nLikes.length,
+        dislikesCount: nDislikes.length,
+        isLiked: nIsLiked,
+        isDisliked: nIsDisliked,
+        userReaction: nIsLiked ? 'like' : nIsDisliked ? 'dislike' : null,
+      });
+    }
 
-      // Send Community Safety Notification to post author
-      const safetyNotif: NotificationItem = {
-        id: `notif_safety_${Date.now()}`,
-        type: 'safety_removal',
-        user: {
-          id: 'funshann_safety',
-          name: 'Funshann Safety Team',
-          username: 'safety',
-          avatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-          bio: 'Official Funshann Community Trust & Safety Team',
-          followersCount: 0,
-          followingCount: 0,
-          postsCount: 0,
-          isFollowing: false,
-        },
-        text: 'Your post received more Dislikes than Likes. To protect privacy and maintain a safe community, we are removing this post from the Funshann platform.',
-        timestamp: formatRelativeTime(Date.now()),
-        read: false,
-        previewImage: removedPost.imageUrl,
-      };
-
-      setNotifications((prev) => [safetyNotif, ...prev]);
-      syncNotificationToFirestore(safetyNotif).catch(console.warn);
-      showToast('Post removed due to community safety protection');
+    // 2. Atomic Firestore transaction so simultaneous reactions never overwrite each other
+    try {
+      const serverResult = await togglePostReactionInFirestore(postId, userId, reaction);
+      if (serverResult) {
+        setPosts((prevPosts) => {
+          return prevPosts.map((target) => {
+            if (target.id !== postId) return target;
+            const nextLikes = serverResult.likes;
+            const nextDislikes = serverResult.dislikes;
+            const nextIsLiked = nextLikes.includes(userId);
+            const nextIsDisliked = nextDislikes.includes(userId);
+            const nextUserReaction: 'like' | 'dislike' | null = nextIsLiked
+              ? 'like'
+              : nextIsDisliked
+              ? 'dislike'
+              : null;
+            return {
+              ...target,
+              likes: nextLikes,
+              dislikes: nextDislikes,
+              likesCount: serverResult.likesCount,
+              dislikesCount: serverResult.dislikesCount,
+              isLiked: nextIsLiked,
+              isDisliked: nextIsDisliked,
+              userReaction: nextUserReaction,
+            };
+          });
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to sync post reaction to Firestore:', err);
     }
   };
 
@@ -1978,6 +2035,7 @@ function AppContent() {
 
           {activeTab === 'search' && (
             <SearchTab
+              currentUser={currentUser}
               users={users}
               onToggleFollow={handleToggleFollow}
               onOpenDirectChat={handleOpenDirectChat}

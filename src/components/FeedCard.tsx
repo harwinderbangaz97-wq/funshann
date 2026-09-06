@@ -28,7 +28,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Post, User, PostReaction } from '../types';
 import { UniversalReportModal } from './UniversalReportModal';
-import { EmojiPickerPopup } from './EmojiPickerPopup';
 import { StickerPickerModal } from './StickerPickerModal';
 import { getRecentStickers, addRecentSticker } from '../utils/stickerUtils';
 import { useTranslation } from '../context/LanguageContext';
@@ -130,10 +129,8 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showQuickReaction, setShowQuickReaction] = useState(false);
   const [showStickerModal, setShowStickerModal] = useState(false); // POST REACTION sticker mode
-  const [showCommentStickerModal, setShowCommentStickerModal] = useState(false); // COMMENT sticker mode
   const [recentStickers, setRecentStickers] = useState<string[]>([]);
   const [activeBurstEmoji, setActiveBurstEmoji] = useState<string | null>(null);
   const [engagementModal, setEngagementModal] = useState<{
@@ -145,7 +142,6 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
     type: 'reactions',
     initialFilterEmoji: null,
   });
-  const emojiPickerContainerRef = useRef<HTMLDivElement>(null);
   const quickReactionRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
   const tapTimeoutRef = useRef<any>(null);
@@ -180,7 +176,6 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
     }
     setActiveBurstEmoji(emoji);
     setTimeout(() => setActiveBurstEmoji(null), 1200);
-    setShowEmojiPicker(false);
   };
 
   // Long-press engagement handlers (~500ms opens modal; short tap triggers action)
@@ -1130,33 +1125,9 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 placeholder={t('feed_write_comment_placeholder')}
-                className="w-full text-xs h-9 pl-3.5 pr-16 rounded-full neu-inset text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/40"
+                className="w-full text-xs h-9 pl-3.5 pr-10 rounded-full neu-inset text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/40"
               />
-              <div className="absolute right-1.5 flex items-center gap-1" ref={emojiPickerContainerRef}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowEmojiPicker((prev) => !prev);
-                  }}
-                  className="w-6.5 h-6.5 rounded-full flex items-center justify-center text-slate-400 hover:text-[#5B9DFF] hover:bg-slate-100 transition cursor-pointer"
-                  title="Add reaction emoji"
-                  aria-label="Add reaction emoji"
-                >
-                  <Smile className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowCommentStickerModal(true);
-                  }}
-                  className="w-6.5 h-6.5 rounded-full flex items-center justify-center text-slate-400 hover:text-[#5B9DFF] hover:bg-slate-100 transition cursor-pointer"
-                  title="Open sticker picker for comment"
-                  aria-label="Open sticker picker for comment"
-                >
-                  <SmilePlus className="w-3.5 h-3.5" />
-                </button>
+              <div className="absolute right-1.5 flex items-center gap-1">
                 {commentInput.trim() && (
                   <motion.button
                     whileTap={{ scale: 0.9 }}
@@ -1167,28 +1138,6 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                     <Send className="w-3.5 h-3.5" />
                   </motion.button>
                 )}
-
-                {/* Popup Emoji Picker Component (COMMENT sticker mode) */}
-                <AnimatePresence>
-                  {showEmojiPicker && (
-                    <EmojiPickerPopup
-                      selectedEmoji={null}
-                      onSelectEmoji={(emoji) => {
-                        if (onAddComment) {
-                          onAddComment(post.id, emoji);
-                          addRecentSticker(emoji);
-                          if (onShowToast) {
-                            onShowToast('Comment posted! 💬');
-                          }
-                        }
-                        setShowEmojiPicker(false);
-                      }}
-                      onClose={() => setShowEmojiPicker(false)}
-                      align="right"
-                      position="top"
-                    />
-                  )}
-                </AnimatePresence>
               </div>
             </div>
           </form>
@@ -1270,22 +1219,6 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
           handleSelectEmojiReaction(emoji);
           addRecentSticker(emoji);
           setShowStickerModal(false);
-        }}
-      />
-
-      {/* COMMENT Sticker Picker Modal */}
-      <StickerPickerModal
-        isOpen={showCommentStickerModal}
-        onClose={() => setShowCommentStickerModal(false)}
-        onSelectSticker={(sticker) => {
-          if (onAddComment) {
-            onAddComment(post.id, sticker);
-            addRecentSticker(sticker);
-            if (onShowToast) {
-              onShowToast('Comment posted! 💬');
-            }
-          }
-          setShowCommentStickerModal(false);
         }}
       />
     </motion.article>

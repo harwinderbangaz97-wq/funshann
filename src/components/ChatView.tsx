@@ -52,6 +52,7 @@ import { UniversalReportModal } from './UniversalReportModal';
 import { CreateGroupModal } from './CreateGroupModal';
 import { GroupInfoModal } from './GroupInfoModal';
 import { CommunityChannelModal } from './CommunityChannelModal';
+import { EmojiPickerPopup } from './EmojiPickerPopup';
 import { CHAT_WALLPAPERS } from '../data/wallpapers';
 import { useNavigation } from '../context/NavigationContext';
 import { usePermissionAndMedia } from '../context/PermissionAndMediaContext';
@@ -428,7 +429,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setChatLightboxUrl,
     setChatMenuOpen,
   } = useNavigation();
-  const { requestPermission } = usePermissionAndMedia();
+  const { requestPermission, takePhoto, chooseFromGallery } = usePermissionAndMedia();
+
+  const handlePickFromGallery = async () => {
+    const res = await chooseFromGallery({
+      accept: 'image/*',
+      featureName: 'Chat Photos',
+    });
+    if (res?.url) {
+      setAttachedImage(res.url);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    const res = await takePhoto({
+      title: 'Chat Camera',
+      featureName: 'Chat Photos',
+    });
+    if (res?.url) {
+      setAttachedImage(res.url);
+    }
+  };
 
   const [inputText, setInputText] = useState('');
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
@@ -1149,7 +1170,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            <button className="p-2 rounded-full hover:bg-slate-100 transition text-slate-500 cursor-pointer"><Camera className="w-5 h-5" /></button>
             <button onClick={() => setShowThreadMenu(true)} className="p-2 rounded-full hover:bg-slate-100 transition text-slate-500 cursor-pointer"><MoreVertical className="w-5 h-5" /></button>
           </div>
         </div>
@@ -1256,7 +1276,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           ) : (
             <div className="flex items-end gap-2 sm:gap-3">
-              <button onClick={() => setShowImagePicker(true)} className="p-2.5 rounded-2xl text-slate-400 hover:bg-slate-100 transition cursor-pointer"><ImageIcon className="w-5 h-5" /></button>
+              <button onClick={handlePickFromGallery} className="p-2.5 rounded-2xl text-slate-400 hover:bg-slate-100 transition cursor-pointer"><ImageIcon className="w-5 h-5" /></button>
+              <button onClick={handleTakePhoto} className="p-2.5 rounded-2xl text-slate-400 hover:bg-slate-100 transition cursor-pointer"><Camera className="w-5 h-5" /></button>
               <div className="flex-1 relative flex flex-col gap-2">
                 {attachedImage && (
                   <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-md group animate-in zoom-in-95">
@@ -1265,6 +1286,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   </div>
                 )}
                 <div className="relative">
+                  <AnimatePresence>
+                    {showInputEmojiPicker && (
+                      <EmojiPickerPopup
+                        onSelectEmoji={(emoji) => {
+                          setInputText((prev) => prev + emoji);
+                          setShowInputEmojiPicker(false);
+                        }}
+                        onClose={() => setShowInputEmojiPicker(false)}
+                        position="top"
+                        align="right"
+                      />
+                    )}
+                  </AnimatePresence>
                   <textarea
                     rows={1}
                     value={inputText}
@@ -1278,7 +1312,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       }
                     }}
                   />
-                  <button onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)} className="absolute right-2.5 bottom-2 p-1 text-slate-400 hover:text-blue-500 transition"><Smile className="w-5 h-5" /></button>
+                  <button onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)} className="absolute right-2.5 bottom-2 p-1 text-slate-400 hover:text-blue-500 transition cursor-pointer"><Smile className="w-5 h-5" /></button>
                 </div>
               </div>
               {inputText.trim() || attachedImage ? (
@@ -1343,6 +1377,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
               name: reportTargetMessage.senderName || 'Member',
               username: 'user',
             }}
+            onShowToast={onShowToast}
+          />
+        )}
+        {!activeThread.isGroup && resolvedParticipant && (
+          <IndividualUserMenu
+            isOpen={showThreadMenu}
+            onClose={() => setShowThreadMenu(false)}
+            user={resolvedParticipant}
+            isFollowing={
+              Boolean(
+                currentUser.following?.includes(resolvedParticipant.id) ||
+                (resolvedParticipant.uid && currentUser.following?.includes(resolvedParticipant.uid)) ||
+                resolvedParticipant.isFollowing
+              )
+            }
+            onToggleFollow={onToggleFollow}
+            onClearChat={onClearChat}
+            isLocked={
+              lockedChatUserIds.includes(resolvedParticipant.id) ||
+              Boolean(resolvedParticipant.uid && lockedChatUserIds.includes(resolvedParticipant.uid))
+            }
+            onToggleLockChat={onToggleLockChat}
             onShowToast={onShowToast}
           />
         )}

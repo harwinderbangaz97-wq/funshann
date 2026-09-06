@@ -28,6 +28,8 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  getDocFromCache,
+  getDocsFromCache,
   deleteDoc,
   updateDoc,
   runTransaction,
@@ -105,6 +107,7 @@ export const db = (() => {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
+        experimentalForceLongPolling: true,
       },
       customDatabaseId
     );
@@ -782,7 +785,7 @@ export const normalizeUser = (u: any): User => {
   };
 };
 
-export const normalizePost = (raw: any): Post => {
+export const normalizePost = (raw: any, currentUserId?: string): Post => {
   const user = normalizeUser(
     raw?.user || {
       id: raw?.userId || raw?.authorId,
@@ -814,6 +817,22 @@ export const normalizePost = (raw: any): Post => {
       })
     : [];
 
+  const rawLikes: string[] = Array.isArray(raw?.likes)
+    ? raw.likes.filter((id: any) => typeof id === 'string' && id.trim())
+    : [];
+  const rawDislikes: string[] = Array.isArray(raw?.dislikes)
+    ? raw.dislikes.filter((id: any) => typeof id === 'string' && id.trim())
+    : [];
+
+  const likes = Array.from(new Set(rawLikes));
+  const dislikes = Array.from(new Set(rawDislikes));
+  const likesCount = likes.length;
+  const dislikesCount = dislikes.length;
+
+  const isLiked = currentUserId ? likes.includes(currentUserId) : false;
+  const isDisliked = currentUserId ? dislikes.includes(currentUserId) : false;
+  const userReaction: 'like' | 'dislike' | null = isLiked ? 'like' : (isDisliked ? 'dislike' : null);
+
   return {
     id: rawId,
     userId: raw?.userId || user.id,
@@ -822,19 +841,19 @@ export const normalizePost = (raw: any): Post => {
     caption: raw?.caption || '',
     timestamp: formatRelativeTime(createdAtMs),
     createdAtMs,
-    likesCount: typeof raw?.likesCount === 'number' ? raw.likesCount : 0,
-    dislikesCount: typeof raw?.dislikesCount === 'number' ? raw.dislikesCount : 0,
+    likesCount,
+    dislikesCount,
     commentsCount:
       typeof raw?.commentsCount === 'number'
         ? raw.commentsCount
         : comments.length,
-    isLiked: Boolean(raw?.isLiked),
-    isDisliked: Boolean(raw?.isDisliked),
-    userReaction: raw?.userReaction || null,
+    isLiked,
+    isDisliked,
+    userReaction,
     isSaved: Boolean(raw?.isSaved),
     isAutoRemoved: Boolean(raw?.isAutoRemoved),
-    likes: Array.isArray(raw?.likes) ? raw.likes : [],
-    dislikes: Array.isArray(raw?.dislikes) ? raw.dislikes : [],
+    likes,
+    dislikes,
     reactions: Array.isArray(raw?.reactions)
       ? raw.reactions.map((r: any) => ({
           emoji: String(r?.emoji || ''),
@@ -845,6 +864,51 @@ export const normalizePost = (raw: any): Post => {
     userEmojiReaction: raw?.userEmojiReaction || null,
     comments,
     location: raw?.location || '',
+  };
+};
+
+export const hydratePostForUser = (
+  post: Post,
+  user?: User | { id?: string; uid?: string } | null
+): Post => {
+  if (!post) return post;
+  const rawLikes: string[] = Array.isArray(post.likes)
+    ? post.likes.filter((id: any) => typeof id === 'string' && id.trim())
+    : [];
+  const rawDislikes: string[] = Array.isArray(post.dislikes)
+    ? post.dislikes.filter((id: any) => typeof id === 'string' && id.trim())
+    : [];
+
+  const uniqueLikes = Array.from(new Set(rawLikes));
+  const uniqueDislikes = Array.from(new Set(rawDislikes));
+
+  const likesCount = uniqueLikes.length;
+  const dislikesCount = uniqueDislikes.length;
+
+  const userId = user?.id || (user as any)?.uid || '';
+  const userUid = (user as any)?.uid || '';
+
+  const isLiked = Boolean(
+    userId && (uniqueLikes.includes(userId) || (userUid && uniqueLikes.includes(userUid)))
+  );
+  const isDisliked = Boolean(
+    userId && (uniqueDislikes.includes(userId) || (userUid && uniqueDislikes.includes(userUid)))
+  );
+  const userReaction: 'like' | 'dislike' | null = isLiked
+    ? 'like'
+    : isDisliked
+    ? 'dislike'
+    : null;
+
+  return {
+    ...post,
+    likes: uniqueLikes,
+    dislikes: uniqueDislikes,
+    likesCount,
+    dislikesCount,
+    isLiked,
+    isDisliked,
+    userReaction,
   };
 };
 
@@ -1033,8 +1097,20 @@ export const getUserFollowingsFromFirestore = async (userId: string): Promise<st
     const q1 = query(followsRef, where('followerUid', '==', userId));
     const q2 = query(followsRef, where('followerId', '==', userId));
     const [snap1, snap2] = await Promise.all([
-      getDocs(q1).catch(() => null),
-      getDocs(q2).catch(() => null),
+      getDocs(q1).catch(async () => {
+        try {
+          return await getDocsFromCache(q1);
+        } catch {
+          return null;
+        }
+      }),
+      getDocs(q2).catch(async () => {
+        try {
+          return await getDocsFromCache(q2);
+        } catch {
+          return null;
+        }
+      }),
     ]);
     const followingIdsSet = new Set<string>();
     const extractIds = (snap: any) => {
@@ -1065,8 +1141,20 @@ export const getUserFollowersFromFirestore = async (userId: string): Promise<str
     const q1 = query(followsRef, where('followingUid', '==', userId));
     const q2 = query(followsRef, where('followingId', '==', userId));
     const [snap1, snap2] = await Promise.all([
-      getDocs(q1).catch(() => null),
-      getDocs(q2).catch(() => null),
+      getDocs(q1).catch(async () => {
+        try {
+          return await getDocsFromCache(q1);
+        } catch {
+          return null;
+        }
+      }),
+      getDocs(q2).catch(async () => {
+        try {
+          return await getDocsFromCache(q2);
+        } catch {
+          return null;
+        }
+      }),
     ]);
     const followerIdsSet = new Set<string>();
     const extractIds = (snap: any) => {
@@ -1120,21 +1208,31 @@ export const subscribeToFollows = (
         });
         callback(records);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToFollows snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'follows');
+          const cacheSnap = await getDocsFromCache(followsRef);
+          const records: FollowRecord[] = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              const idParts = docSnap.id.includes('_') ? docSnap.id.split('_') : [];
+              const followerId = data.followerUid || data.followerId || idParts[0] || '';
+              const followingId = data.followingUid || data.followingId || idParts[1] || '';
+              if (followerId && followingId) {
+                records.push({ id: docSnap.id, followerId, followingId });
+              }
+            }
+          });
+          if (records.length > 0) callback(records);
         } catch {
-          // Handled and logged
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'follows');
-    } catch {
-      // Handled and logged
-    }
+    console.warn('Firestore subscribeToFollows notice:', err);
     return () => {};
   }
 };
@@ -1340,8 +1438,13 @@ export const getUserProfileFromFirestore = async (userId: string): Promise<User 
     await ensureFirebaseAuth();
     if (!userId) return null;
     const userRef = doc(db, 'users', userId);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) {
+    let snap;
+    try {
+      snap = await getDoc(userRef);
+    } catch {
+      snap = await getDocFromCache(userRef).catch(() => null);
+    }
+    if (snap && snap.exists()) {
       const u = normalizeUser(snap.data());
       const followings = await getUserFollowingsFromFirestore(userId);
       return {
@@ -1408,30 +1511,37 @@ export const subscribeToUsers = (callback: (users: User[]) => void, limitCount =
         });
         callback(Array.from(map.values()));
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToUsers snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'users');
+          const cacheSnap = await getDocsFromCache(q);
+          const map = new Map<string, User>();
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              const u = normalizeUser({ ...docSnap.data(), id: docSnap.id });
+              if (u && u.id) {
+                map.set(u.id, u);
+              }
+            }
+          });
+          if (map.size > 0) callback(Array.from(map.values()));
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'users');
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToUsers notice:', err);
     return () => {};
   }
 };
 
 export const getUsersFromFirestore = async (limitCount = 30): Promise<User[]> => {
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, limit(limitCount));
   try {
     await ensureFirebaseAuth();
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, limit(limitCount));
     const querySnapshot = await getDocs(q);
     const map = new Map<string, User>();
     querySnapshot.forEach((docSnap) => {
@@ -1444,8 +1554,22 @@ export const getUsersFromFirestore = async (limitCount = 30): Promise<User[]> =>
     });
     return Array.from(map.values());
   } catch (error) {
-    console.warn('Firestore getUsers fallback:', error);
-    return [];
+    console.warn('Firestore getUsers remote fallback, checking cache:', error);
+    try {
+      const cacheSnapshot = await getDocsFromCache(q);
+      const map = new Map<string, User>();
+      cacheSnapshot.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          const u = normalizeUser({ ...docSnap.data(), id: docSnap.id });
+          if (u && u.id) {
+            map.set(u.id, u);
+          }
+        }
+      });
+      return Array.from(map.values());
+    } catch {
+      return [];
+    }
   }
 };
 
@@ -1461,6 +1585,13 @@ export const syncPostToFirestore = async (post: Post): Promise<void> => {
       (post as any).createdAt ||
       post.timestamp ||
       (post.id.startsWith('post_') ? parseInt(post.id.replace('post_', ''), 10) : null)
+    );
+
+    const uniqueLikes = Array.from(
+      new Set(Array.isArray(post.likes) ? post.likes.filter((id) => typeof id === 'string' && id.trim()) : [])
+    );
+    const uniqueDislikes = Array.from(
+      new Set(Array.isArray(post.dislikes) ? post.dislikes.filter((id) => typeof id === 'string' && id.trim()) : [])
     );
 
     await setDoc(
@@ -1481,15 +1612,14 @@ export const syncPostToFirestore = async (post: Post): Promise<void> => {
         timestamp: formatRelativeTime(createdAtMs),
         createdAtMs,
         createdAt: serverTimestamp(),
-        likesCount: typeof post.likesCount === 'number' ? post.likesCount : 0,
-        dislikesCount: typeof post.dislikesCount === 'number' ? post.dislikesCount : 0,
+        likes: uniqueLikes,
+        dislikes: uniqueDislikes,
+        likesCount: uniqueLikes.length,
+        dislikesCount: uniqueDislikes.length,
         commentsCount:
           typeof post.commentsCount === 'number'
             ? post.commentsCount
             : (post.comments?.length || 0),
-        isLiked: Boolean(post.isLiked),
-        isDisliked: Boolean(post.isDisliked),
-        userReaction: post.userReaction || null,
         isSaved: Boolean(post.isSaved),
         isAutoRemoved: Boolean(post.isAutoRemoved),
         comments: Array.isArray(post.comments)
@@ -1508,6 +1638,84 @@ export const syncPostToFirestore = async (post: Post): Promise<void> => {
     );
   } catch (error) {
     console.warn('Firestore post sync fallback to local:', error);
+  }
+};
+
+export const togglePostReactionInFirestore = async (
+  postId: string,
+  userId: string,
+  reaction: 'like' | 'dislike'
+): Promise<{ likes: string[]; dislikes: string[]; likesCount: number; dislikesCount: number } | null> => {
+  if (!postId || !userId) return null;
+  try {
+    await ensureFirebaseAuth();
+    const postRef = doc(db, 'posts', postId);
+
+    const result = await runTransaction(db, async (transaction) => {
+      const postDoc = await transaction.get(postRef);
+      if (!postDoc.exists()) {
+        throw new Error(`Post with id ${postId} does not exist in Firestore`);
+      }
+
+      const data = postDoc.data();
+      const existingLikes: string[] = Array.isArray(data.likes)
+        ? data.likes.filter((id: any) => typeof id === 'string' && id.trim())
+        : [];
+      const existingDislikes: string[] = Array.isArray(data.dislikes)
+        ? data.dislikes.filter((id: any) => typeof id === 'string' && id.trim())
+        : [];
+
+      const likesSet = new Set(existingLikes);
+      const dislikesSet = new Set(existingDislikes);
+
+      const isCurrentlyLiked = likesSet.has(userId);
+      const isCurrentlyDisliked = dislikesSet.has(userId);
+
+      if (reaction === 'like') {
+        if (isCurrentlyLiked) {
+          // User already liked -> remove like
+          likesSet.delete(userId);
+        } else {
+          // User wants to like -> add like, remove dislike if exists
+          likesSet.add(userId);
+          dislikesSet.delete(userId);
+        }
+      } else if (reaction === 'dislike') {
+        if (isCurrentlyDisliked) {
+          // User already disliked -> remove dislike
+          dislikesSet.delete(userId);
+        } else {
+          // User wants to dislike -> add dislike, remove like if exists
+          dislikesSet.add(userId);
+          likesSet.delete(userId);
+        }
+      }
+
+      const newLikes = Array.from(likesSet);
+      const newDislikes = Array.from(dislikesSet);
+      const newLikesCount = newLikes.length;
+      const newDislikesCount = newDislikes.length;
+
+      transaction.update(postRef, {
+        likes: newLikes,
+        dislikes: newDislikes,
+        likesCount: newLikesCount,
+        dislikesCount: newDislikesCount,
+        updatedAt: serverTimestamp(),
+      });
+
+      return {
+        likes: newLikes,
+        dislikes: newDislikes,
+        likesCount: newLikesCount,
+        dislikesCount: newDislikesCount,
+      };
+    });
+
+    return result;
+  } catch (error) {
+    console.warn('Firestore toggle post reaction fallback:', error);
+    return null;
   }
 };
 
@@ -1539,13 +1747,13 @@ export const updatePostInFirestore = async (postId: string, updates: Partial<Pos
 let lastPostDocSnapshot: any = null;
 
 export const getPostsFromFirestore = async (limitCount = 15, resetPagination = true): Promise<Post[]> => {
+  const postsRef = collection(db, 'posts');
+  let q = query(postsRef, limit(limitCount));
+  if (!resetPagination && lastPostDocSnapshot) {
+    q = query(postsRef, startAfter(lastPostDocSnapshot), limit(limitCount));
+  }
   try {
     await ensureFirebaseAuth();
-    const postsRef = collection(db, 'posts');
-    let q = query(postsRef, limit(limitCount));
-    if (!resetPagination && lastPostDocSnapshot) {
-      q = query(postsRef, startAfter(lastPostDocSnapshot), limit(limitCount));
-    }
     const querySnapshot = await getDocs(q);
     const result: Post[] = [];
     if (!querySnapshot.empty) {
@@ -1564,8 +1772,23 @@ export const getPostsFromFirestore = async (limitCount = 15, resetPagination = t
     result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
     return result;
   } catch (error) {
-    console.warn('Firestore getPosts fallback:', error);
-    return [];
+    console.warn('Firestore getPosts remote fallback, checking cache:', error);
+    try {
+      const cacheSnapshot = await getDocsFromCache(q);
+      const result: Post[] = [];
+      cacheSnapshot.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
+          if (p && p.id) {
+            result.push(p);
+          }
+        }
+      });
+      result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+      return result;
+    } catch {
+      return [];
+    }
   }
 };
 
@@ -1594,21 +1817,31 @@ export const subscribeToPosts = (callback: (posts: Post[]) => void, limitCount =
         result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
         callback(result);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToPosts snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'posts');
+          const cacheSnap = await getDocsFromCache(q);
+          const result: Post[] = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
+              if (p && p.id) {
+                result.push(p);
+              }
+            }
+          });
+          if (result.length > 0) {
+            result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+            callback(result);
+          }
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'posts');
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToPosts notice:', err);
     return () => {};
   }
 };
@@ -1684,30 +1917,39 @@ export const subscribeToChatMessages = (threadId: string, callback: (messages: M
         });
         callback(msgs);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToChatMessages snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, `chat_threads/${threadId}/messages`);
+          const cacheSnap = await getDocsFromCache(q);
+          const msgs: Message[] = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              msgs.push({ 
+                id: docSnap.id, 
+                ...data,
+                isDelivered: true
+              } as Message);
+            }
+          });
+          if (msgs.length > 0) callback(msgs);
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, `chat_threads/${threadId}/messages`);
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToChatMessages notice:', err);
     return () => {};
   }
 };
 
 export const getChatThreadsFromFirestore = async (limitCount = 50): Promise<ChatThread[]> => {
+  const threadsRef = collection(db, 'chat_threads');
+  const q = query(threadsRef, limit(limitCount));
   try {
     await ensureFirebaseAuth();
-    const threadsRef = collection(db, 'chat_threads');
-    const q = query(threadsRef, limit(limitCount));
     const querySnapshot = await getDocs(q);
     const result: ChatThread[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -1717,8 +1959,19 @@ export const getChatThreadsFromFirestore = async (limitCount = 50): Promise<Chat
     });
     return result;
   } catch (error) {
-    console.warn('Firestore getChatThreads fallback:', error);
-    return [];
+    console.warn('Firestore getChatThreads remote fallback, checking cache:', error);
+    try {
+      const cacheSnapshot = await getDocsFromCache(q);
+      const result: ChatThread[] = [];
+      cacheSnapshot.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          result.push(normalizeChatThread(docSnap.data()));
+        }
+      });
+      return result;
+    } catch {
+      return [];
+    }
   }
 };
 
@@ -1742,21 +1995,25 @@ export const subscribeToChatThreads = (callback: (threads: ChatThread[]) => void
         });
         callback(result);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToChatThreads snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'chat_threads');
+          const cacheSnap = await getDocsFromCache(q);
+          const result: ChatThread[] = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              result.push(normalizeChatThread(docSnap.data()));
+            }
+          });
+          if (result.length > 0) callback(result);
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'chat_threads');
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToChatThreads notice:', err);
     return () => {};
   }
 };
@@ -1834,10 +2091,10 @@ export const deleteStoryFromFirestore = async (storyId: string): Promise<void> =
 };
 
 export const getStoriesFromFirestore = async (): Promise<Story[]> => {
+  const storiesRef = collection(db, 'stories');
+  const q = query(storiesRef, limit(30));
   try {
     await ensureFirebaseAuth();
-    const storiesRef = collection(db, 'stories');
-    const q = query(storiesRef, limit(30));
     const querySnapshot = await getDocs(q);
     const result: Story[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -1847,8 +2104,19 @@ export const getStoriesFromFirestore = async (): Promise<Story[]> => {
     });
     return result;
   } catch (error) {
-    console.warn('Firestore getStories fallback:', error);
-    return [];
+    console.warn('Firestore getStories remote fallback, checking cache:', error);
+    try {
+      const cacheSnapshot = await getDocsFromCache(q);
+      const result: Story[] = [];
+      cacheSnapshot.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          result.push(normalizeStory(docSnap.data()));
+        }
+      });
+      return result;
+    } catch {
+      return [];
+    }
   }
 };
 
@@ -1867,21 +2135,25 @@ export const subscribeToStories = (callback: (stories: Story[]) => void): (() =>
         });
         callback(result);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToStories snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'stories');
+          const cacheSnap = await getDocsFromCache(q);
+          const result: Story[] = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              result.push(normalizeStory(docSnap.data()));
+            }
+          });
+          if (result.length > 0) callback(result);
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'stories');
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToStories notice:', err);
     return () => {};
   }
 };
@@ -1917,10 +2189,10 @@ export const syncNotificationToFirestore = async (notification: NotificationItem
 };
 
 export const getNotificationsFromFirestore = async (): Promise<NotificationItem[]> => {
+  const notifsRef = collection(db, 'notifications');
+  const q = query(notifsRef, limit(30));
   try {
     await ensureFirebaseAuth();
-    const notifsRef = collection(db, 'notifications');
-    const q = query(notifsRef, limit(30));
     const querySnapshot = await getDocs(q);
     const result: NotificationItem[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -1930,8 +2202,19 @@ export const getNotificationsFromFirestore = async (): Promise<NotificationItem[
     });
     return result;
   } catch (error) {
-    console.warn('Firestore getNotifications fallback:', error);
-    return [];
+    console.warn('Firestore getNotifications remote fallback, checking cache:', error);
+    try {
+      const cacheSnapshot = await getDocsFromCache(q);
+      const result: NotificationItem[] = [];
+      cacheSnapshot.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          result.push(normalizeNotification(docSnap.data()));
+        }
+      });
+      return result;
+    } catch {
+      return [];
+    }
   }
 };
 
@@ -1955,21 +2238,25 @@ export const subscribeToNotifications = (callback: (notifications: NotificationI
         });
         callback(result);
       },
-      (error) => {
+      async (error) => {
+        console.warn('Firestore subscribeToNotifications snapshot notice:', error?.message || error);
         try {
-          handleFirestoreError(error, OperationType.GET, 'notifications');
+          const cacheSnap = await getDocsFromCache(q);
+          const result: NotificationItem[] = [];
+          cacheSnap.forEach((docSnap) => {
+            if (docSnap.exists()) {
+              result.push(normalizeNotification(docSnap.data()));
+            }
+          });
+          if (result.length > 0) callback(result);
         } catch {
-          // Handled and error logged via handleFirestoreError
+          // Cache empty or fallback
         }
       }
     );
     return unsubscribe;
   } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'notifications');
-    } catch {
-      // Handled and error logged via handleFirestoreError
-    }
+    console.warn('Firestore subscribeToNotifications notice:', err);
     return () => {};
   }
 };
