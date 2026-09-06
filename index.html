@@ -27,13 +27,13 @@
     <div id="recaptcha-container"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Fallback for script load errors
+      // Fallback for primary script load errors
       window.addEventListener('error', function(e) {
-        if (e.target.tagName === 'SCRIPT') {
+        if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && (e.target.src.includes('main.tsx') || e.target.src.includes('/assets/'))) {
           console.error('Script load error detected:', e.target.src);
           const root = document.getElementById('root');
           if (root && root.innerHTML.includes('Initializing')) {
-            root.innerHTML = '<div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; padding: 20px; text-align: center;"><h2 style="color: #ef4444;">Failed to load application</h2><p style="color: #64748b;">The application script could not be loaded. This might be due to a CORS issue or network restriction.</p><button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #5B9DFF; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer;">Try Again</button></div>';
+            root.innerHTML = '<div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; padding: 20px; text-align: center;"><h2 style="color: #ef4444;">Failed to load application</h2><p style="color: #64748b;">The application script could not be loaded. Please try refreshing.</p><button onclick="window.location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #5B9DFF; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer;">Try Again</button></div>';
           }
         }
       }, true);

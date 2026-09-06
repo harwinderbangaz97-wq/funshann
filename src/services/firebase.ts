@@ -608,7 +608,10 @@ export const uploadMediaToStorage = async (
     await ensureFirebaseAuth();
     const storage = getStorageClient();
     if (!storage) {
-      return typeof dataOrUrlOrFile === 'string' && isValidMediaUrl(dataOrUrlOrFile) ? dataOrUrlOrFile : '';
+      if (typeof dataOrUrlOrFile === 'string' && !dataOrUrlOrFile.startsWith('blob:') && isValidMediaUrl(dataOrUrlOrFile)) {
+        return dataOrUrlOrFile;
+      }
+      return '';
     }
     const storageRef: StorageReference = ref(storage, storagePath);
 
@@ -631,14 +634,17 @@ export const uploadMediaToStorage = async (
     }
 
     const downloadUrl = await getDownloadURL(storageRef);
-    if (isValidMediaUrl(downloadUrl)) {
+    if (isValidMediaUrl(downloadUrl) && !downloadUrl.startsWith('blob:')) {
       return downloadUrl;
     }
-    return typeof dataOrUrlOrFile === 'string' ? dataOrUrlOrFile : '';
+    return typeof dataOrUrlOrFile === 'string' && !dataOrUrlOrFile.startsWith('blob:') ? dataOrUrlOrFile : '';
   } catch (error) {
     console.warn(`Firebase Cloud Storage upload fallback for ${storagePath}:`, error);
-    // If storage is pending initial bucket rules or network is limited, return original valid data URL seamlessly
-    return typeof dataOrUrlOrFile === 'string' ? dataOrUrlOrFile : '';
+    // Never return a local blob: URL because another user's device cannot access it
+    if (typeof dataOrUrlOrFile === 'string' && !dataOrUrlOrFile.startsWith('blob:') && isValidMediaUrl(dataOrUrlOrFile)) {
+      return dataOrUrlOrFile;
+    }
+    return '';
   }
 };
 
@@ -702,12 +708,31 @@ export const uploadChatMediaToStorage = async (
 ): Promise<string> => {
   const extMap = { image: 'jpg', video: 'mp4', audio: 'webm' };
   const mimeMap = { image: 'image/jpeg', video: 'video/mp4', audio: 'audio/webm' };
-  const path = `users/${userId}/chats/${threadId}/${mediaType}_${Date.now()}.${extMap[mediaType]}`;
-  return uploadMediaToStorage({
+  let mime = mimeMap[mediaType];
+  let ext = extMap[mediaType];
+
+  if (media instanceof Blob && media.type) {
+    mime = media.type;
+    if (mime.includes('mp4')) ext = 'mp4';
+    else if (mime.includes('ogg')) ext = 'ogg';
+    else if (mime.includes('wav')) ext = 'wav';
+    else if (mime.includes('webm')) ext = 'webm';
+  }
+
+  const safeThreadId = (threadId || 'general').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const path = `users/${userId}/chats/${safeThreadId}/${mediaType}_${Date.now()}.${ext}`;
+  const uploadedUrl = await uploadMediaToStorage({
     dataOrUrlOrFile: media,
     storagePath: path,
-    contentType: mimeMap[mediaType],
+    contentType: mime,
   });
+
+  // Guarantee we NEVER return a local blob: URL
+  if (uploadedUrl && uploadedUrl.startsWith('blob:')) {
+    return '';
+  }
+
+  return uploadedUrl;
 };
 
 // ==========================================

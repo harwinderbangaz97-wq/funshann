@@ -1415,10 +1415,10 @@ function AppContent() {
           }
         })
         .catch(console.warn);
-    } else if (voiceNote?.audioUrl && voiceNote.audioUrl.startsWith('data:')) {
+    } else if (voiceNote?.audioUrl && (voiceNote.audioUrl.startsWith('data:') || voiceNote.audioUrl.startsWith('blob:'))) {
       uploadChatMediaToStorage(currentUser.id, receiverId, voiceNote.audioUrl, 'audio')
         .then((downloadUrl) => {
-          if (downloadUrl && downloadUrl !== voiceNote.audioUrl) {
+          if (downloadUrl && downloadUrl !== voiceNote.audioUrl && !downloadUrl.startsWith('blob:')) {
             setChatThreads((prevThreads) =>
               prevThreads.map((t) => {
                 if (t.id === receiverId || t.participant?.id === receiverId || (!t.isGroup && t.id.includes(receiverId)) || t.id === deterministicId) {

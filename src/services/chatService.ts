@@ -15,7 +15,8 @@ import {
   Unsubscribe,
   Timestamp,
 } from 'firebase/firestore';
-import { db, auth, ensureFirebaseAuth, handleFirestoreError, OperationType } from './firebase';
+import { db, auth, ensureFirebaseAuth, handleFirestoreError, OperationType, uploadChatMediaToStorage } from './firebase';
+import { blobToDataUrl } from '../utils/audioBlobUtils';
 import { Message, VoiceNoteData, User, MessagePrivacyMode } from '../types';
 import { parseTimestampToMs, format12HourTime } from './timeUtils';
 
@@ -143,7 +144,22 @@ export const addChatMessageToFirestore = async (
     messageObj.imageUrl = messageData.imageUrl;
   }
   if (messageData.voiceNote) {
-    messageObj.voiceNote = messageData.voiceNote;
+    let finalVoiceNote = { ...messageData.voiceNote };
+    if (finalVoiceNote.audioUrl && finalVoiceNote.audioUrl.startsWith('blob:')) {
+      try {
+        const uploaded = await uploadChatMediaToStorage(senderId, chatId, finalVoiceNote.audioUrl, 'audio');
+        if (uploaded && !uploaded.startsWith('blob:')) {
+          finalVoiceNote.audioUrl = uploaded;
+        } else {
+          const res = await fetch(finalVoiceNote.audioUrl);
+          const b = await res.blob();
+          finalVoiceNote.audioUrl = await blobToDataUrl(b);
+        }
+      } catch (err) {
+        console.warn('Voice upload error in addChatMessageToFirestore:', err);
+      }
+    }
+    messageObj.voiceNote = finalVoiceNote;
   }
   if (messageData.isForwarded) {
     messageObj.isForwarded = true;

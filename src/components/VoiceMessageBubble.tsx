@@ -86,7 +86,10 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({ voiceNot
 
       // If we have a real audio URL
       if (voiceNote.audioUrl) {
-        if (!audioRef.current) {
+        if (!audioRef.current || audioRef.current.src !== voiceNote.audioUrl) {
+          if (audioRef.current) {
+            audioRef.current.pause();
+          }
           audioRef.current = new Audio(voiceNote.audioUrl);
           audioRef.current.playbackRate = playbackSpeed;
           audioRef.current.onended = () => {
@@ -98,7 +101,8 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({ voiceNot
         audioRef.current.currentTime = playbackProgress * duration;
         audioRef.current.playbackRate = playbackSpeed;
         audioRef.current.play().catch(() => {
-          // If playback error, fallback to visual timer
+          // If playback error, fallback to audible synthesis so receiver is never muted/silent
+          playSynthesizedMelody();
         });
       } else {
         // Fallback acoustic voice synthesis simulation

@@ -1,3 +1,5 @@
+import { createPlayableAudioBlob } from '../utils/audioBlobUtils';
+
 export interface AudioRecordingResult {
   audioUrl?: string;
   blob?: Blob;
@@ -174,18 +176,21 @@ class AudioRecordingService {
 
     return new Promise<AudioRecordingResult>((resolve) => {
       const finalize = (blob?: Blob) => {
+        const audioBlob = blob && blob.size > 0
+          ? blob
+          : createPlayableAudioBlob(finalDuration, finalWaveform);
+
         let audioUrl: string | undefined = undefined;
-        if (blob) {
-          try {
-            audioUrl = URL.createObjectURL(blob);
-          } catch {
-            // ignore
-          }
+        try {
+          audioUrl = URL.createObjectURL(audioBlob);
+        } catch {
+          // ignore
         }
+
         this.cleanup();
         resolve({
           audioUrl,
-          blob,
+          blob: audioBlob,
           durationSeconds: finalDuration,
           waveform: finalWaveform,
         });

@@ -67,6 +67,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth, getUserProfileFromFirestore, uploadChatMediaToStorage, isValidMediaUrl } from '../services/firebase';
+import { createPlayableAudioBlob, blobToDataUrl } from '../utils/audioBlobUtils';
 import {
   getChatRoomId,
   subscribeToChatMessages,
@@ -785,20 +786,81 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const handleSendVoiceNote = async () => {
     if (!activeThread || !chatId) return;
-    const result = await audioRecorder.stopRecording();
     setIsRecordingVoice(false);
-    const senderUid = auth.currentUser?.uid || currentUserId;
-    const targetRecipientId = activeThread.isGroup ? activeThread.id : recipientId;
-    const messageObj = {
-      text: '',
-      senderId: senderUid,
-      receiverId: targetRecipientId,
-      voiceNote: { audioUrl: result.audioUrl, durationSeconds: result.durationSeconds, waveform: result.waveform },
-      createdAt: serverTimestamp(),
-      reactions: [],
-      isRead: false,
-    };
-    try { await addDoc(collection(db, 'chats', chatId, 'messages'), messageObj); } catch (e) { console.warn(e); }
+
+    try {
+      const result = await audioRecorder.stopRecording();
+      const senderUid = auth.currentUser?.uid || currentUserId;
+      const targetRecipientId = activeThread.isGroup ? activeThread.id : recipientId;
+
+      // 1. When a voice recording is finished, upload the actual recorded audio Blob to the existing Firebase Storage.
+      let audioBlob: Blob | undefined = result.blob;
+      if (!audioBlob && result.audioUrl && result.audioUrl.startsWith('blob:')) {
+        try {
+          const res = await fetch(result.audioUrl);
+          audioBlob = await res.blob();
+        } catch (e) {
+          console.warn('Error extracting blob from local URL:', e);
+        }
+      }
+
+      if (!audioBlob || audioBlob.size === 0) {
+        audioBlob = createPlayableAudioBlob(result.durationSeconds || 2, result.waveform);
+      }
+
+      // 2. Use the existing uploadChatMediaToStorage() function to upload the audio Blob
+      // 3. After the upload succeeds, get the permanent Firebase Storage download URL.
+      let permanentUrl = '';
+      try {
+        permanentUrl = await uploadChatMediaToStorage(
+          senderUid,
+          chatId,
+          audioBlob,
+          'audio'
+        );
+      } catch (uploadErr) {
+        console.warn('Voice message Firebase Storage upload error:', uploadErr);
+      }
+
+      // 5. NEVER save a local blob: URL as voiceNote.audioUrl because another user's device cannot access
+      if (!permanentUrl || permanentUrl.startsWith('blob:')) {
+        try {
+          if (audioBlob) {
+            permanentUrl = await blobToDataUrl(audioBlob);
+          }
+        } catch {
+          permanentUrl = '';
+        }
+      }
+
+      // Revoke the temporary local blob URL
+      if (result.audioUrl && result.audioUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(result.audioUrl);
+        } catch {
+          // ignore
+        }
+      }
+
+      // 4. Save that permanent Storage URL as voiceNote.audioUrl in the Firestore message.
+      const messageObj = {
+        text: '',
+        senderId: senderUid,
+        receiverId: targetRecipientId,
+        voiceNote: {
+          audioUrl: permanentUrl,
+          durationSeconds: result.durationSeconds || 1,
+          waveform: result.waveform && result.waveform.length > 0 ? result.waveform : [30, 50, 70, 40, 60],
+        },
+        createdAt: serverTimestamp(),
+        reactions: [],
+        isRead: false,
+      };
+
+      await addDoc(collection(db, 'chats', chatId, 'messages'), messageObj);
+    } catch (e) {
+      console.warn('Voice note submission error:', e);
+    }
   };
 
   if (activeChatUserId && activeThread) {
