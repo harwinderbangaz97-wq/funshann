@@ -407,3 +407,78 @@ export const subscribeToAllChatRooms = (
     return () => {};
   }
 };
+
+/**
+ * Updates the user's typing state in chats/{chatId}
+ */
+export const setTypingStatusInFirestore = async (
+  chatId: string,
+  userId: string,
+  isTyping: boolean
+): Promise<void> => {
+  if (!chatId || !userId) return;
+  try {
+    const chatRef = doc(db, 'chats', chatId);
+    await setDoc(
+      chatRef,
+      {
+        typing: {
+          [userId]: isTyping,
+        },
+        typingTimestamps: {
+          [userId]: isTyping ? Date.now() : 0,
+        },
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn('Error setting typing status in Firestore:', error);
+  }
+};
+
+/**
+ * Real-time listener for typing status in a specific chat room
+ */
+export const subscribeToChatTypingStatus = (
+  chatId: string,
+  currentUserId: string,
+  callback: (isOtherUserTyping: boolean, typingUserIds: string[]) => void
+): Unsubscribe => {
+  if (!chatId) return () => {};
+  try {
+    const chatRef = doc(db, 'chats', chatId);
+    const unsubscribe = onSnapshot(
+      chatRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          callback(false, []);
+          return;
+        }
+        const data = snapshot.data();
+        const typingMap = data.typing || {};
+        const timestampsMap = data.typingTimestamps || {};
+        const now = Date.now();
+
+        // Check which participants other than currentUserId are actively typing
+        const typingUserIds: string[] = [];
+        for (const [uid, typingState] of Object.entries(typingMap)) {
+          if (uid !== currentUserId && typingState === true) {
+            const timestamp = (timestampsMap as Record<string, number>)[uid];
+            if (!timestamp || now - timestamp < 15000) {
+              typingUserIds.push(uid);
+            }
+          }
+        }
+        callback(typingUserIds.length > 0, typingUserIds);
+      },
+      (error) => {
+        console.warn('Error listening to chat typing status:', error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn('Error subscribing to chat typing status:', err);
+    return () => {};
+  }
+};
+

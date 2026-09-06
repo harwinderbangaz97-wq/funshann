@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
   Send,
@@ -37,6 +37,9 @@ import {
   Megaphone,
   MessageSquare,
   Share2,
+  RefreshCw,
+  Loader2,
+  ArrowDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, ChatThread, Message, VoiceNoteData, MessagePrivacyMode, MessageReportReason } from '../types';
@@ -76,6 +79,8 @@ import {
   toggleMessageReactionInFirestore,
   addChatMessageToFirestore,
   createOrEnsureChatDocument,
+  setTypingStatusInFirestore,
+  subscribeToChatTypingStatus,
 } from '../services/chatService';
 import { parseTimestampToMs, format12HourTime, formatRelativeTime } from '../services/timeUtils';
 
@@ -718,11 +723,135 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [chatId, currentUserId, recipientId, isGroupThread]);
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messageLimit, setMessageLimit] = useState(30);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+
+  // Real-time Firestore typing indicator state
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
+  const [activeTypingUserIds, setActiveTypingUserIds] = useState<string[]>([]);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isCurrentlyTypingRef = useRef<boolean>(false);
+
+  const startYRef = useRef<number>(0);
+  const isTouchActiveRef = useRef<boolean>(false);
+  const previousScrollHeightRef = useRef<number>(0);
+  const isPrependingRef = useRef<boolean>(false);
+  const previousChatIdRef = useRef<string>('');
+  const prevLastMessageIdRef = useRef<string | null>(null);
+
+  // Reset pagination state when switching chats
+  useEffect(() => {
+    if (chatId !== previousChatIdRef.current) {
+      previousChatIdRef.current = chatId;
+      setMessageLimit(30);
+      setHasMoreOlder(true);
+      setIsLoadingOlder(false);
+      setIsPulling(false);
+      setPullDistance(0);
+      prevLastMessageIdRef.current = null;
+      setIsOtherUserTyping(false);
+      setActiveTypingUserIds([]);
+    }
+  }, [chatId]);
+
+  // Subscribe to real-time typing status in Firestore
+  useEffect(() => {
+    if (!chatId || !currentUserId) {
+      setIsOtherUserTyping(false);
+      setActiveTypingUserIds([]);
+      return;
+    }
+    const unsubscribe = subscribeToChatTypingStatus(chatId, currentUserId, (typing, userIds) => {
+      setIsOtherUserTyping(typing);
+      setActiveTypingUserIds(userIds);
+    });
+    return () => unsubscribe();
+  }, [chatId, currentUserId]);
+
+  // Cleanup local typing status on unmount or chat change
+  const clearLocalTypingStatus = useCallback(() => {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    if (isCurrentlyTypingRef.current && chatId && currentUserId) {
+      isCurrentlyTypingRef.current = false;
+      setTypingStatusInFirestore(chatId, currentUserId, false).catch(console.warn);
+    }
+  }, [chatId, currentUserId]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (chatId && currentUserId && isCurrentlyTypingRef.current) {
+        setTypingStatusInFirestore(chatId, currentUserId, false).catch(console.warn);
+      }
+    };
+  }, [chatId, currentUserId]);
+
+  // Handle local user input changes and track typing status in Firestore
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInputText(val);
+
+    if (!chatId || !currentUserId) return;
+
+    if (val.trim().length > 0) {
+      if (!isCurrentlyTypingRef.current) {
+        isCurrentlyTypingRef.current = true;
+        setTypingStatusInFirestore(chatId, currentUserId, true).catch(console.warn);
+      }
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        isCurrentlyTypingRef.current = false;
+        setTypingStatusInFirestore(chatId, currentUserId, false).catch(console.warn);
+      }, 2500);
+    } else {
+      if (isCurrentlyTypingRef.current) {
+        isCurrentlyTypingRef.current = false;
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        setTypingStatusInFirestore(chatId, currentUserId, false).catch(console.warn);
+      }
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (inputText.trim() || attachedImage) {
+      clearLocalTypingStatus();
+      onSendMessage(recipientId, inputText.trim(), attachedImage || undefined);
+      setInputText('');
+      setAttachedImage(null);
+    }
+  };
+
+  const typingParticipant = useMemo<User | undefined>(() => {
+    if (activeTypingUserIds.length === 0) return resolvedParticipant;
+    const typingUid = activeTypingUserIds[0];
+    const foundUser = allUsers?.find(u => u.id === typingUid || (u as any).uid === typingUid);
+    return foundUser || resolvedParticipant;
+  }, [activeTypingUserIds, allUsers, resolvedParticipant]);
 
   useEffect(() => {
     if (!chatId) { setMessages([]); return; }
-    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'), limit(50));
+    // Query the newest messageLimit messages (in desc order), then reverse for ascending timeline
+    const q = query(
+      collection(db, 'chats', chatId, 'messages'),
+      orderBy('createdAt', 'desc'),
+      limit(messageLimit)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Determine if more history exists beyond current limit
+      if (snapshot.docs.length < messageLimit) {
+        setHasMoreOlder(false);
+      } else {
+        setHasMoreOlder(true);
+      }
+
       const msgs: Message[] = snapshot.docs.map((docSnap) => {
         const data = docSnap.data({ serverTimestamps: 'estimate' });
         const createdAtMs = parseTimestampToMs(data.createdAt || data.timestamp || docSnap.id);
@@ -739,11 +868,65 @@ export const ChatView: React.FC<ChatViewProps> = ({
           reactions: Array.isArray(data.reactions) ? data.reactions : [],
           isDelivered: !snapshot.metadata.hasPendingWrites,
         } as Message;
-      });
+      }).reverse(); // Ascending chronological order
+
       setMessages(msgs);
     }, (error) => console.warn('Snapshot error:', error));
     return () => unsubscribe();
-  }, [chatId]);
+  }, [chatId, messageLimit]);
+
+  const handleLoadOlderMessages = useCallback(() => {
+    if (isLoadingOlder || !hasMoreOlder) return;
+    setIsLoadingOlder(true);
+    if (chatContainerRef.current) {
+      previousScrollHeightRef.current = chatContainerRef.current.scrollHeight;
+      isPrependingRef.current = true;
+    }
+    // Increment message limit to query older history
+    setMessageLimit((prev) => prev + 25);
+
+    // Failsafe reset if snapshot is already in cache
+    setTimeout(() => {
+      setIsLoadingOlder(false);
+    }, 1500);
+  }, [isLoadingOlder, hasMoreOlder]);
+
+  // Touch handlers for pull-to-refresh
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!chatContainerRef.current || isLoadingOlder || !hasMoreOlder) return;
+    if (chatContainerRef.current.scrollTop <= 2) {
+      startYRef.current = e.touches[0].clientY;
+      isTouchActiveRef.current = true;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isTouchActiveRef.current || !chatContainerRef.current || isLoadingOlder || !hasMoreOlder) return;
+    if (chatContainerRef.current.scrollTop <= 2) {
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - startYRef.current;
+      if (diff > 0) {
+        setIsPulling(true);
+        // Dampen touch pull distance (max 75px)
+        const distance = Math.min(75, diff * 0.45);
+        setPullDistance(distance);
+      } else {
+        setIsPulling(false);
+        setPullDistance(0);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (isTouchActiveRef.current) {
+      if (pullDistance >= 45 && !isLoadingOlder && hasMoreOlder) {
+        handleLoadOlderMessages();
+      }
+      isTouchActiveRef.current = false;
+      setIsPulling(false);
+      setPullDistance(0);
+    }
+  };
 
   const activeThread = useMemo<ChatThread | null>(() => {
     if (!activeChatUserId) return null;
@@ -755,12 +938,46 @@ export const ChatView: React.FC<ChatViewProps> = ({
       messages: [],
       lastMessage: { text: '', timestamp: '', isRead: true, senderId: '' },
     };
-    return { ...baseThread, id: chatId || baseThread.id, participant: resolvedParticipant || baseThread.participant, messages };
-  }, [activeChatUserId, rawActiveThread, chatId, resolvedParticipant, recipientId, currentUserId, messages]);
+    return {
+      ...baseThread,
+      id: chatId || baseThread.id,
+      participant: resolvedParticipant || baseThread.participant,
+      messages,
+      isTyping: isOtherUserTyping || rawActiveThread?.isTyping,
+    };
+  }, [activeChatUserId, rawActiveThread, chatId, resolvedParticipant, recipientId, currentUserId, messages, isOtherUserTyping]);
+
+  // Handle auto-scroll vs preserving scroll position on older message load
+  useEffect(() => {
+    if (!messages.length) return;
+    const lastMsg = messages[messages.length - 1];
+    const lastMsgId = lastMsg?.id;
+
+    if (isPrependingRef.current && chatContainerRef.current) {
+      // Maintain previous scroll position so the view doesn't jump
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          const newScrollHeight = chatContainerRef.current.scrollHeight;
+          const scrollDiff = newScrollHeight - previousScrollHeightRef.current;
+          if (scrollDiff > 0) {
+            chatContainerRef.current.scrollTop = scrollDiff;
+          }
+        }
+        isPrependingRef.current = false;
+        setIsLoadingOlder(false);
+      });
+    } else if (lastMsgId !== prevLastMessageIdRef.current) {
+      // Auto-scroll to bottom only when new incoming message at bottom or initial load
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+    prevLastMessageIdRef.current = lastMsgId || null;
+  }, [messages]);
 
   useEffect(() => {
-    if (activeThread) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeThread?.messages, activeThread?.isTyping]);
+    if (activeThread?.isTyping) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeThread?.isTyping]);
 
   useEffect(() => {
     if (activeThread && chatId) {
@@ -788,6 +1005,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const handleSendVoiceNote = async () => {
     if (!activeThread || !chatId) return;
     setIsRecordingVoice(false);
+    clearLocalTypingStatus();
 
     try {
       const result = await audioRecorder.stopRecording();
@@ -901,10 +1119,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <h3 className="text-sm font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
                   {activeThread.isGroup ? activeThread.groupName : (resolvedParticipant?.name || 'Contact')}
                 </h3>
-                {!activeThread.isGroup && (
-                  <p className="text-[10px] font-medium text-emerald-600 animate-pulse">
-                    {resolvedParticipant?.isOnline ? 'Active Now' : 'Last seen recently'}
-                  </p>
+                {!activeThread.isGroup ? (
+                  activeThread.isTyping ? (
+                    <p className="text-[10px] font-semibold text-blue-600 animate-pulse flex items-center gap-1">
+                      <span>typing</span>
+                      <span className="inline-flex gap-0.5">
+                        <span className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] font-medium text-emerald-600 animate-pulse">
+                      {resolvedParticipant?.isOnline ? 'Active Now' : 'Last seen recently'}
+                    </p>
+                  )
+                ) : (
+                  activeThread.isTyping ? (
+                    <p className="text-[10px] font-semibold text-blue-600 animate-pulse">
+                      {typingParticipant ? `${typingParticipant.name.split(' ')[0]} is typing...` : 'typing...'}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] font-medium text-slate-500">
+                      {activeThread.participantIds?.length || 0} members
+                    </p>
+                  )
                 )}
               </div>
             </div>
@@ -917,11 +1156,63 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
         <div
           ref={chatContainerRef}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 relative no-scrollbar"
           style={{ ...wallStyles, WebkitOverflowScrolling: 'touch' }}
         >
           <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(241, 245, 249, ${threadWallpaper.dimming / 100})`, backdropFilter: `blur(${threadWallpaper.blur}px)` }} />
           <div className="relative z-10 flex flex-col gap-4 pb-2">
+            {/* Pull to Refresh Indicator & History Loader */}
+            <div className="flex flex-col items-center justify-center -mt-1 mb-1">
+              {(isPulling || isLoadingOlder) && (
+                <div
+                  className="flex items-center justify-center gap-2 py-2 px-4 rounded-full bg-white/95 backdrop-blur-md shadow-md border border-slate-200/80 text-xs font-semibold text-slate-700 transition-all duration-200 animate-in fade-in"
+                  style={{
+                    transform: `translateY(${Math.min(pullDistance, 35)}px)`,
+                    opacity: Math.max(0.6, Math.min(1, (pullDistance + 10) / 40)),
+                  }}
+                >
+                  {isLoadingOlder ? (
+                    <>
+                      <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                      <span>Loading older messages...</span>
+                    </>
+                  ) : pullDistance >= 45 ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+                      <span>Release to load older history</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown
+                        className="w-4 h-4 text-slate-400 transition-transform duration-150"
+                        style={{ transform: `rotate(${Math.min(180, (pullDistance / 45) * 180)}deg)` }}
+                      />
+                      <span>Pull down to load older messages</span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!isPulling && !isLoadingOlder && hasMoreOlder && messages.length >= 10 && (
+                <button
+                  onClick={handleLoadOlderMessages}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white text-slate-600 hover:text-blue-600 border border-slate-200/70 text-[11px] font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                >
+                  <RefreshCw className="w-3 h-3 text-slate-400 group-hover:text-blue-500 group-hover:rotate-180 transition-all duration-300" />
+                  <span>Load older messages</span>
+                </button>
+              )}
+
+              {!hasMoreOlder && messages.length >= 15 && (
+                <div className="text-[10px] text-slate-400 font-medium py-1">
+                  Beginning of conversation history
+                </div>
+              )}
+            </div>
+
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-50">
                 <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center shadow-sm"><Sparkles className="w-8 h-8 text-blue-400" /></div>
@@ -943,7 +1234,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 }}
               />
             ))}
-            {activeThread.isTyping && resolvedParticipant && <TypingIndicatorBubble participant={resolvedParticipant} />}
+            {activeThread.isTyping && (typingParticipant || resolvedParticipant) && (
+              <TypingIndicatorBubble participant={typingParticipant || resolvedParticipant!} />
+            )}
             <div ref={messagesEndRef} className="h-2" />
           </div>
         </div>
@@ -975,17 +1268,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <textarea
                     rows={1}
                     value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
+                    onChange={handleInputChange}
                     placeholder="Type a message..."
                     className="w-full max-h-32 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-[20px] text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none no-scrollbar font-medium"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        if (inputText.trim() || attachedImage) {
-                          onSendMessage(recipientId, inputText.trim(), attachedImage || undefined);
-                          setInputText('');
-                          setAttachedImage(null);
-                        }
+                        handleSendMessage();
                       }
                     }}
                   />
@@ -994,11 +1283,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
               {inputText.trim() || attachedImage ? (
                 <button
-                  onClick={() => {
-                    onSendMessage(recipientId, inputText.trim(), attachedImage || undefined);
-                    setInputText('');
-                    setAttachedImage(null);
-                  }}
+                  onClick={handleSendMessage}
                   className="p-3 rounded-2xl bg-[#5B9DFF] text-white shadow-lg hover:bg-blue-600 transition cursor-pointer"
                 >
                   <Send className="w-5 h-5" />
