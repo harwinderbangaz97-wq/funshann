@@ -185,9 +185,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   };
   const isOwnProfile = Boolean(displayedUser?.id && activeUser?.id && displayedUser.id === activeUser.id);
   const isFollowing = !isOwnProfile && currentUser
-    ? ((currentUser.followingCount ?? 0) === 0 && (!currentUser.following || currentUser.following.length === 0))
-      ? false
-      : (currentUser.following || []).includes(displayedUser.id)
+    ? ((currentUser.following || []).includes(displayedUser.id) || Boolean(displayedUser.isFollowing))
     : Boolean(displayedUser.isFollowing);
   const isUserLocked = lockedChatUserIds.includes(displayedUser.id);
   const userAvatar =

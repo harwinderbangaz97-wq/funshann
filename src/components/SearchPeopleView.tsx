@@ -37,11 +37,11 @@ const SearchPeopleViewComponent: React.FC<SearchPeopleViewProps> = ({
   const checkIsFollowing = (u: User): boolean => {
     if (!currentUser || !currentUser.id) return Boolean(u.isFollowing);
     const followingList = currentUser.following || [];
-    // If following count is 0 or following list is empty, then NOT following
+    // If following count is 0 or following list is empty, return u.isFollowing
     if ((currentUser.followingCount ?? 0) === 0 && followingList.length === 0) {
-      return false;
+      return Boolean(u.isFollowing);
     }
-    return followingList.includes(u.id);
+    return followingList.includes(u.id) || Boolean(u.isFollowing);
   };
 
   // Filter out duplicate users using unique user IDs (u.id) and exclude current logged in user

@@ -225,13 +225,13 @@ function AppContent() {
     const unsubscribeFollows = subscribeToFollows((records) => {
       const myFollowingSet = new Set(
         records
-          .filter((f) => f.followerId === currentUser.id && f.followingId !== currentUser.id)
-          .map((f) => f.followingId)
+          .filter((f) => (f.followerId === currentUser.id || f.followerUid === currentUser.id) && (f.followingId !== currentUser.id && f.followingUid !== currentUser.id))
+          .map((f) => f.followingId || f.followingUid)
       );
       const myFollowersSet = new Set(
         records
-          .filter((f) => f.followingId === currentUser.id && f.followerId !== currentUser.id)
-          .map((f) => f.followerId)
+          .filter((f) => (f.followingId === currentUser.id || f.followingUid === currentUser.id) && (f.followerId !== currentUser.id && f.followerUid !== currentUser.id))
+          .map((f) => f.followerId || f.followerUid)
       );
       const myFollowingList = Array.from(myFollowingSet);
       const myFollowersList = Array.from(myFollowersSet);
@@ -253,6 +253,19 @@ function AppContent() {
           followersCount: myFollowersList.length,
         };
       });
+
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => {
+          const isNowFollowing = myFollowingList.includes(u.id);
+          if (u.isFollowing !== isNowFollowing) {
+            return {
+              ...u,
+              isFollowing: isNowFollowing,
+            };
+          }
+          return u;
+        })
+      );
     });
 
     return () => unsubscribeFollows();

@@ -1094,6 +1094,8 @@ export interface FollowRecord {
   id: string;
   followerId: string;
   followingId: string;
+  followerUid?: string;
+  followingUid?: string;
 }
 
 export const subscribeToFollows = (
@@ -2002,6 +2004,8 @@ export const followUser = async (followerUid: string, followingUid: string): Pro
       transaction.set(followRef, {
         followerUid,
         followingUid,
+        followerId: followerUid,
+        followingId: followingUid,
         createdAt: serverTimestamp(),
       });
       transaction.set(followerRef, { followingCount: increment(1) }, { merge: true });
@@ -2014,6 +2018,8 @@ export const followUser = async (followerUid: string, followingUid: string): Pro
     await setDoc(followRef, {
       followerUid,
       followingUid,
+      followerId: followerUid,
+      followingId: followingUid,
       createdAt: serverTimestamp(),
     }, { merge: true }).catch(console.warn);
   }
