@@ -84,8 +84,13 @@ import {
   serverTimestamp,
   getPostsFromFirestore,
   loadMorePostsFromFirestore,
+  getStoriesFromFirestore,
   getUsersFromFirestore,
   getUserFollowingsFromFirestore,
+  getUserFollowersFromFirestore,
+  subscribeToFollows,
+  isPostByUserId,
+  getUserPostsCountFromFirestore,
 } from './services/firebase';
 import {
   sendChatMessage,
@@ -138,7 +143,29 @@ const LoadingSpinner = () => (
 );
 
 function AppContent() {
-  const { navState, goBack, navigateToTab, openUserProfile, popUserProfile, openChatThread, closeChatThread, openStoryViewer, closeStoryViewer, openComments, closeComments, openShareSheet, closeShareSheet, openNotifications, closeNotifications, openSettings, closeSettings, openPostPreview, closePostPreview, canGoBack } = useNavigation();
+  const {
+    navState,
+    goBack,
+    navigateToTab,
+    openUserProfile,
+    popUserProfile,
+    openChatThread,
+    closeChatThread,
+    openStoryViewer,
+    closeStoryViewer,
+    openComments,
+    closeComments,
+    openShareSheet,
+    closeShareSheet,
+    openNotifications,
+    closeNotifications,
+    openSettings,
+    closeSettings,
+    openPostPreview,
+    closePostPreview,
+    resetNavigation,
+    canGoBack,
+  } = useNavigation();
   const { user, loading, authInitialized } = useAuth();
   const [currentUser, setCurrentUser] = useState<User>(() => {
     try {
@@ -147,62 +174,27 @@ function AppContent() {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.id) {
           return {
-            id: parsed.id || '',
-            name: parsed.name || '',
-            username: parsed.username || '',
+            ...EMPTY_USER,
+            ...parsed,
             avatar: parsed.avatar || DEFAULT_AVATAR,
-            bio: parsed.bio || '',
-            location: parsed.location || '',
-            website: parsed.website || '',
-            interests: parsed.interests || [],
-            socialLinks: parsed.socialLinks || [],
-            birthday: parsed.birthday || '',
-            mobileNumber: parsed.mobileNumber || '',
-            email: parsed.email || '',
-            twoFactorEnabled: parsed.twoFactorEnabled || false,
-            twoFactorMethod: parsed.twoFactorMethod || 'authenticator',
-            usernameLastChangedAt: parsed.usernameLastChangedAt || new Date().toISOString(),
-            postsCount: parsed.postsCount || 0,
-            followersCount: parsed.followersCount || 0,
-            followingCount: parsed.followingCount || 0,
-            isVerified: parsed.isVerified || false,
-            isOnline: parsed.isOnline || false,
           };
         }
       }
     } catch (e) {
       console.warn('Failed to load currentUser from localStorage:', e);
     }
-    return {
-      id: '',
-      name: '',
-      username: '',
-      avatar: DEFAULT_AVATAR,
-      bio: '',
-      location: '',
-      website: '',
-      interests: [],
-      socialLinks: [],
-      birthday: '',
-      mobileNumber: '',
-      email: '',
-      twoFactorEnabled: false,
-      twoFactorMethod: 'authenticator',
-      usernameLastChangedAt: new Date().toISOString(),
-      postsCount: 0,
-      followersCount: 0,
-      followingCount: 0,
-      isVerified: false,
-      isOnline: false,
-    };
+    return EMPTY_USER;
   });
 
   useEffect(() => {
-    if (currentUser && currentUser.id) {
-      getUserFollowingsFromFirestore(currentUser.id).then((followings) => {
-        if (followings && followings.length >= 0) {
-          setCurrentUser(prev => {
-            if (prev.followingCount === followings.length) return prev;
+    if (!currentUser || !currentUser.id) return;
+
+    // Fetch following from Firestore
+    getUserFollowingsFromFirestore(currentUser.id)
+      .then((followings) => {
+        if (followings) {
+          setCurrentUser((prev) => {
+            if (prev.followingCount === followings.length && JSON.stringify(prev.following) === JSON.stringify(followings)) return prev;
             return {
               ...prev,
               following: followings,
@@ -210,8 +202,60 @@ function AppContent() {
             };
           });
         }
-      }).catch(console.warn);
-    }
+      })
+      .catch(console.warn);
+
+    // Fetch followers from Firestore
+    getUserFollowersFromFirestore(currentUser.id)
+      .then((followers) => {
+        if (followers) {
+          setCurrentUser((prev) => {
+            if (prev.followersCount === followers.length && JSON.stringify(prev.followers) === JSON.stringify(followers)) return prev;
+            return {
+              ...prev,
+              followers,
+              followersCount: followers.length,
+            };
+          });
+        }
+      })
+      .catch(console.warn);
+
+    // Subscribe to follows collection changes for real-time updates
+    const unsubscribeFollows = subscribeToFollows((records) => {
+      const myFollowingSet = new Set(
+        records
+          .filter((f) => f.followerId === currentUser.id && f.followingId !== currentUser.id)
+          .map((f) => f.followingId)
+      );
+      const myFollowersSet = new Set(
+        records
+          .filter((f) => f.followingId === currentUser.id && f.followerId !== currentUser.id)
+          .map((f) => f.followerId)
+      );
+      const myFollowingList = Array.from(myFollowingSet);
+      const myFollowersList = Array.from(myFollowersSet);
+
+      setCurrentUser((prev) => {
+        if (
+          prev.followingCount === myFollowingList.length &&
+          prev.followersCount === myFollowersList.length &&
+          JSON.stringify(prev.following) === JSON.stringify(myFollowingList) &&
+          JSON.stringify(prev.followers) === JSON.stringify(myFollowersList)
+        ) {
+          return prev;
+        }
+        return {
+          ...prev,
+          following: myFollowingList,
+          followingCount: myFollowingList.length,
+          followers: myFollowersList,
+          followersCount: myFollowersList.length,
+        };
+      });
+    });
+
+    return () => unsubscribeFollows();
   }, [currentUser?.id]);
 
   const [showSplash, setShowSplash] = useState<boolean>(() => {
@@ -308,6 +352,19 @@ function AppContent() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreatingStory, setIsCreatingStory] = useState(false);
+
+  // Keep currentUser.postsCount synchronized with actual posts
+  useEffect(() => {
+    if (!currentUser || !currentUser.id) return;
+    const myPosts = posts.filter((p) => isPostByUserId(p, currentUser.id));
+    setCurrentUser((prev) => {
+      if (prev.postsCount === myPosts.length) return prev;
+      return {
+        ...prev,
+        postsCount: myPosts.length,
+      };
+    });
+  }, [currentUser?.id, posts]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -415,8 +472,66 @@ function AppContent() {
           console.error("Auth state change profile fetch error:", err);
         }
       } else {
+        setCurrentUser(EMPTY_USER);
+        setNotifications([]);
+        setChatThreads([]);
+        try {
+          localStorage.removeItem('funshann_current_user');
+        } catch {
+          // ignore
+        }
       }
     });
+
+    // Initial fetch from Firestore to ensure existing posts, stories, and users load immediately
+    getPostsFromFirestore(50).then((initialPosts) => {
+      if (initialPosts && initialPosts.length > 0) {
+        setPosts((prevPosts) => {
+          const map = new Map<string, Post>();
+          prevPosts.forEach((p) => map.set(p.id, p));
+          initialPosts.forEach((p) => {
+            if (p && p.id) {
+              map.set(p.id, p);
+            }
+          });
+          return Array.from(map.values()).sort((a, b) => {
+            const timeA = a.createdAtMs || (a.id.startsWith('post_') ? parseInt(a.id.replace('post_', ''), 10) || 0 : 0);
+            const timeB = b.createdAtMs || (b.id.startsWith('post_') ? parseInt(b.id.replace('post_', ''), 10) || 0 : 0);
+            return timeB - timeA;
+          });
+        });
+      }
+    }).catch(console.warn);
+
+    getStoriesFromFirestore().then((initialStories) => {
+      if (initialStories && initialStories.length > 0) {
+        setStories((prevStories) => {
+          const map = new Map<string, Story>();
+          prevStories.forEach((s) => map.set(s.id, s));
+          initialStories.forEach((s) => {
+            if (s && s.id) {
+              map.set(s.id, s);
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    }).catch(console.warn);
+
+    getUsersFromFirestore(50).then((initialUsers) => {
+      if (initialUsers && initialUsers.length > 0) {
+        setUsers((prevUsers) => {
+          const map = new Map<string, User>();
+          prevUsers.forEach((u) => map.set(u.id, u));
+          initialUsers.forEach((u) => {
+            if (u && u.id) {
+              map.set(u.id, u);
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    }).catch(console.warn);
 
     // 2. Real-time Firestore Subscriptions for Posts, Stories, Chat Threads, Users, and Notifications
     const unsubPosts = subscribeToPosts((remotePosts) => {
@@ -1671,9 +1786,7 @@ function AppContent() {
   const currentUserId = activeUser.id;
   const displayedUserId = displayedProfileUser?.id || currentUserId;
 
-  const profileUserPosts = displayedUserId === currentUserId
-    ? posts.filter((p) => (p.userId && p.userId === currentUserId) || (p.user && p.user.id === currentUserId))
-    : posts.filter((p) => (p.userId && p.userId === displayedUserId) || (p.user && p.user.id === displayedUserId));
+  const profileUserPosts = posts.filter((p) => isPostByUserId(p, displayedUserId));
 
   const userPosts = profileUserPosts;
   const savedPosts = posts.filter((p) => p.isSaved);
@@ -1684,8 +1797,22 @@ function AppContent() {
     .reduce((acc, t) => acc + t.unreadCount, 0);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    showToast('Logged out successfully');
+    try {
+      await signOut(auth);
+      try {
+        localStorage.removeItem('funshann_current_user');
+      } catch (e) {
+        console.warn('Failed to clear funshann_current_user from localStorage:', e);
+      }
+      setCurrentUser(EMPTY_USER);
+      setNotifications([]);
+      setChatThreads([]);
+      resetNavigation();
+      showToast('Logged out successfully');
+    } catch (err) {
+      console.error('Logout error:', err);
+      showToast('Failed to log out');
+    }
   };
 
   // Stop background media and prevent background scrolling when navigating to another screen or opening overlays
@@ -1763,8 +1890,12 @@ function AppContent() {
         )}
       </AnimatePresence>
 
-      {!showSplash && authInitialized && !user && (!currentUser || !currentUser.id) ? (
+      {!showSplash && authInitialized && !user ? (
         <WelcomeAuthScreen theme={theme} onAuthenticate={handleAuthenticate} />
+      ) : (!showSplash && authInitialized && user && (!currentUser || !currentUser.id)) ? (
+        <div className="flex justify-center items-center h-screen w-screen bg-[#0F172A] text-white">
+          <LoadingSpinner />
+        </div>
       ) : (
         !showSplash && !loading && (
           <DeviceFrame theme={theme} onThemeChange={handleUpdateTheme}>

@@ -41,10 +41,12 @@ export interface User {
   followersCount: number;
   followingCount: number;
   following?: string[];
+  followers?: string[];
   isVerified?: boolean;
   isFollowing?: boolean;
   isOnline?: boolean;
   status?: 'active' | 'suspended';
+  role?: string;
   registrationDate?: string;
   authProvider?: string;
 }

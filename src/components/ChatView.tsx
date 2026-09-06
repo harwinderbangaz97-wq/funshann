@@ -802,9 +802,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   if (activeChatUserId && activeThread) {
-    const threadWallpaper = wallpapersByThread[activeThread.id] || globalWallpaper;
+    const threadWallpaper = globalWallpaper;
+    const selectedWallpaper = CHAT_WALLPAPERS.find(w => w.id === threadWallpaper.wallpaperId);
     const wallStyles: React.CSSProperties = {
-      backgroundImage: threadWallpaper.wallpaperId !== 'clean-default' ? `url(${CHAT_WALLPAPERS.find(w => w.id === threadWallpaper.wallpaperId)?.url})` : 'none',
+      backgroundImage: threadWallpaper.wallpaperId !== 'clean-default' && selectedWallpaper?.value ? (selectedWallpaper.type === 'image' ? `url(${selectedWallpaper.value})` : selectedWallpaper.value) : 'none',
       backgroundSize: 'cover',
       backgroundPosition: 'center',
     };
@@ -965,8 +966,34 @@ export const ChatView: React.FC<ChatViewProps> = ({
         )}
 
         <ChatWallpaperModal isOpen={isWallpaperModalOpen} onClose={() => setIsWallpaperModalOpen(false)} currentSettings={globalWallpaper} participantName="this chat" onSaveWallpaper={(s) => setGlobalWallpaper(s)} onShowToast={onShowToast} />
-        {deleteTargetMessage && <DeleteMessageConfirmModal isOpen={!!deleteTargetMessage} onClose={() => setDeleteTargetMessage(null)} onConfirm={() => { if (onDeleteMessage) onDeleteMessage(activeThread.id, deleteTargetMessage.id); setDeleteTargetMessage(null); }} messageSnippet={deleteTargetMessage.text} />}
-        {reportTargetMessage && <UniversalReportModal isOpen={!!reportTargetMessage} onClose={() => setReportTargetMessage(null)} targetType="message" targetId={reportTargetMessage.id} targetName="message" onReport={(reason, details) => { if (onReportMessage) onReportMessage(activeThread.id, reportTargetMessage, reason, details); setReportTargetMessage(null); }} />}
+        {deleteTargetMessage && (
+          <DeleteMessageConfirmModal
+            isOpen={!!deleteTargetMessage}
+            message={deleteTargetMessage}
+            onClose={() => setDeleteTargetMessage(null)}
+            onConfirmDelete={() => {
+              if (onDeleteMessage) onDeleteMessage(activeThread.id, deleteTargetMessage.id);
+              setDeleteTargetMessage(null);
+            }}
+          />
+        )}
+        {reportTargetMessage && (
+          <UniversalReportModal
+            isOpen={!!reportTargetMessage}
+            onClose={() => setReportTargetMessage(null)}
+            contentType="message"
+            contentId={reportTargetMessage.id}
+            threadId={activeThread.id}
+            snippet={reportTargetMessage.text}
+            reporterUserId={currentUser.id}
+            targetUser={{
+              id: reportTargetMessage.senderId,
+              name: reportTargetMessage.senderName || 'Member',
+              username: 'user',
+            }}
+            onShowToast={onShowToast}
+          />
+        )}
       </div>
     );
   }

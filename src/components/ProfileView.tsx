@@ -45,7 +45,14 @@ import { EditProfileModal } from './EditProfileModal';
 import { IndividualUserMenu } from './IndividualUserMenu';
 import { FeedCard } from './FeedCard';
 import { useNavigation } from '../context/NavigationContext';
-import { DEFAULT_AVATAR, getFollowersListForUser, getFollowingListForUser } from '../services/firebase';
+import {
+  DEFAULT_AVATAR,
+  getFollowersListForUser,
+  getFollowingListForUser,
+  getUserFollowersFromFirestore,
+  getUserFollowingsFromFirestore,
+  subscribeToFollows,
+} from '../services/firebase';
 
 interface ProfileViewProps {
   currentUser: User;
@@ -189,6 +196,53 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
 
   // Fetch Followers / Following from Firestore for the target profile user
   const targetProfileUserId = displayedUser?.id || profileUser?.id || currentUser?.id;
+
+  // Real calculated counters based on existing Firestore records
+  const effectivePostsCount = Array.isArray(userPosts)
+    ? userPosts.length
+    : (displayedUser.postsCount ?? 0);
+
+  const [realFollowersCount, setRealFollowersCount] = useState<number>(() => displayedUser.followersCount ?? 0);
+  const [realFollowingCount, setRealFollowingCount] = useState<number>(() => displayedUser.followingCount ?? 0);
+
+  useEffect(() => {
+    if (!targetProfileUserId) return;
+
+    // Direct Firestore fetch using followingUid/followingId and followerUid/followerId
+    getUserFollowingsFromFirestore(targetProfileUserId)
+      .then((followingList) => {
+        if (followingList) {
+          setRealFollowingCount(followingList.length);
+        }
+      })
+      .catch(console.warn);
+
+    getUserFollowersFromFirestore(targetProfileUserId)
+      .then((followersList) => {
+        if (followersList) {
+          setRealFollowersCount(followersList.length);
+        }
+      })
+      .catch(console.warn);
+
+    // Live subscription to keep counts updating dynamically when follows are added/removed
+    const unsubscribe = subscribeToFollows((records) => {
+      const followings = new Set(
+        records
+          .filter((f) => f.followerId === targetProfileUserId && f.followingId !== targetProfileUserId)
+          .map((f) => f.followingId)
+      );
+      const followers = new Set(
+        records
+          .filter((f) => f.followingId === targetProfileUserId && f.followerId !== targetProfileUserId)
+          .map((f) => f.followerId)
+      );
+      setRealFollowingCount(followings.size);
+      setRealFollowersCount(followers.size);
+    });
+
+    return () => unsubscribe();
+  }, [targetProfileUserId]);
 
   useEffect(() => {
     if (!listModalType || !targetProfileUserId) {
@@ -597,7 +651,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
             title="View posts"
           >
             <span className="block text-[16.5px] font-extrabold text-slate-800 font-['Outfit'] leading-tight">
-              {displayedUser.postsCount}
+              {effectivePostsCount}
             </span>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mt-0.5">
               Posts
@@ -610,9 +664,9 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
             title="View followers"
           >
             <span className="block text-[16.5px] font-extrabold text-slate-800 font-['Outfit'] leading-tight">
-              {displayedUser.followersCount > 999
-                ? `${(displayedUser.followersCount / 1000).toFixed(1)}k`
-                : displayedUser.followersCount}
+              {realFollowersCount > 999
+                ? `${(realFollowersCount / 1000).toFixed(1)}k`
+                : realFollowersCount}
             </span>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mt-0.5">
               Followers
@@ -625,7 +679,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
             title="View following"
           >
             <span className="block text-[16.5px] font-extrabold text-slate-800 font-['Outfit'] leading-tight">
-              {displayedUser.followingCount}
+              {realFollowingCount}
             </span>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mt-0.5">
               Following

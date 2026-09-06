@@ -49,6 +49,7 @@ export interface NavigationContextType {
   setChatLightboxUrl: (url: string | null) => void;
   setChatMenuOpen: (open: boolean) => void;
   setIsEditProfileOpen: (open: boolean) => void;
+  resetNavigation: () => void;
   // Query helpers
   canGoBack: boolean;
   isRootScreen: boolean;
@@ -558,6 +559,12 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     [pushBrowserHistory]
   );
 
+  const resetNavigation = useCallback(() => {
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    setNavState(initialNavState);
+  }, []);
+
   const canGoBack = checkCanGoBack(navState);
   const isRootScreen = !canGoBack;
 
@@ -589,6 +596,7 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
         setChatLightboxUrl,
         setChatMenuOpen,
         setIsEditProfileOpen,
+        resetNavigation,
         canGoBack,
         isRootScreen,
       }}

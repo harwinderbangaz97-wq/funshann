@@ -15,7 +15,7 @@ import {
   Unsubscribe,
   Timestamp,
 } from 'firebase/firestore';
-import { db, auth, ensureFirebaseAuth } from './firebase';
+import { db, auth, ensureFirebaseAuth, handleFirestoreError, OperationType } from './firebase';
 import { Message, VoiceNoteData, User, MessagePrivacyMode } from '../types';
 import { parseTimestampToMs, format12HourTime } from './timeUtils';
 
@@ -83,13 +83,21 @@ export const subscribeToChatMessages = (
         callback(messages);
       },
       (error) => {
-        console.warn('Real-time chat messages listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, `chats/${chatId}/messages`);
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
 
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to chat messages:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, `chats/${chatId}/messages`);
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -366,12 +374,20 @@ export const subscribeToAllChatRooms = (
         callback(rooms);
       },
       (error) => {
-        console.warn('Chat rooms onSnapshot notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'chats');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to chat rooms:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'chats');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };

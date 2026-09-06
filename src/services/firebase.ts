@@ -109,13 +109,62 @@ export const db = (() => {
       customDatabaseId
     );
   } catch (err) {
+    console.warn('initializeFirestore with persistentLocalCache notice:', err);
     try {
-      return customDatabaseId ? getFirestore(app, customDatabaseId) : getFirestore(app);
-    } catch {
-      return getFirestore(app);
+      return getFirestore(app, customDatabaseId);
+    } catch (e) {
+      console.warn('getFirestore fallback notice:', e);
+      return getFirestore(app, customDatabaseId);
     }
   }
 })();
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // Initialize single Firebase Cloud Storage instance
 export const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
@@ -984,6 +1033,134 @@ export const getUserFollowingsFromFirestore = async (userId: string): Promise<st
   }
 };
 
+export const getUserFollowersFromFirestore = async (userId: string): Promise<string[]> => {
+  try {
+    if (!userId) return [];
+    const followsRef = collection(db, 'follows');
+    const q1 = query(followsRef, where('followingUid', '==', userId));
+    const q2 = query(followsRef, where('followingId', '==', userId));
+    const [snap1, snap2] = await Promise.all([
+      getDocs(q1).catch(() => null),
+      getDocs(q2).catch(() => null),
+    ]);
+    const followerIdsSet = new Set<string>();
+    const extractIds = (snap: any) => {
+      if (!snap) return;
+      snap.forEach((docSnap: any) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          const targetId = data.followerUid || data.followerId || (docSnap.id.includes('_') ? docSnap.id.split('_')[0] : null);
+          if (targetId && targetId !== userId) {
+            followerIdsSet.add(targetId);
+          }
+        }
+      });
+    };
+    extractIds(snap1);
+    extractIds(snap2);
+    return Array.from(followerIdsSet);
+  } catch (error) {
+    console.warn('Failed to fetch user followers:', error);
+    return [];
+  }
+};
+
+export interface FollowRecord {
+  id: string;
+  followerId: string;
+  followingId: string;
+}
+
+export const subscribeToFollows = (
+  callback: (records: FollowRecord[]) => void
+): (() => void) => {
+  try {
+    const followsRef = collection(db, 'follows');
+    const unsubscribe = onSnapshot(
+      followsRef,
+      (snapshot) => {
+        const records: FollowRecord[] = [];
+        snapshot.forEach((docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const idParts = docSnap.id.includes('_') ? docSnap.id.split('_') : [];
+            const followerId = data.followerUid || data.followerId || idParts[0] || '';
+            const followingId = data.followingUid || data.followingId || idParts[1] || '';
+            if (followerId && followingId) {
+              records.push({ id: docSnap.id, followerId, followingId });
+            }
+          }
+        });
+        callback(records);
+      },
+      (error) => {
+        try {
+          handleFirestoreError(error, OperationType.GET, 'follows');
+        } catch {
+          // Handled and logged
+        }
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.GET, 'follows');
+    } catch {
+      // Handled and logged
+    }
+    return () => {};
+  }
+};
+
+export const isPostByUserId = (post: Post, targetUserId: string): boolean => {
+  if (!post || !targetUserId) return false;
+  const raw = post as any;
+  return Boolean(
+    post.userId === targetUserId ||
+    post.user?.id === targetUserId ||
+    raw.authorId === targetUserId ||
+    raw.authorUid === targetUserId ||
+    raw.uid === targetUserId ||
+    raw.user?.uid === targetUserId
+  );
+};
+
+export const getUserPostsCountFromFirestore = async (userId: string): Promise<number> => {
+  try {
+    if (!userId) return 0;
+    const postsRef = collection(db, 'posts');
+    const q1 = query(postsRef, where('userId', '==', userId));
+    const q2 = query(postsRef, where('authorId', '==', userId));
+    const q3 = query(postsRef, where('uid', '==', userId));
+    const q4 = query(postsRef, where('user.id', '==', userId));
+
+    const [s1, s2, s3, s4] = await Promise.all([
+      getDocs(q1).catch(() => null),
+      getDocs(q2).catch(() => null),
+      getDocs(q3).catch(() => null),
+      getDocs(q4).catch(() => null),
+    ]);
+
+    const postIds = new Set<string>();
+    const addIds = (snap: any) => {
+      if (!snap) return;
+      snap.forEach((docSnap: any) => {
+        if (docSnap.exists()) {
+          postIds.add(docSnap.id);
+        }
+      });
+    };
+    addIds(s1);
+    addIds(s2);
+    addIds(s3);
+    addIds(s4);
+    return postIds.size;
+  } catch (error) {
+    console.warn('Failed to fetch user post count from Firestore:', error);
+    return 0;
+  }
+};
+
 export const getUsersByIdsFromFirestore = async (userIds: string[], knownUsers: User[] = []): Promise<User[]> => {
   if (!userIds || userIds.length === 0) return [];
   const knownMap = new Map<string, User>();
@@ -1186,7 +1363,7 @@ export const getUsernameByEmail = async (email: string): Promise<string | null> 
   }
 };
 
-export const subscribeToUsers = (callback: (users: User[]) => void, limitCount = 30): (() => void) => {
+export const subscribeToUsers = (callback: (users: User[]) => void, limitCount = 50): (() => void) => {
   try {
     const usersRef = collection(db, 'users');
     const q = query(usersRef, limit(limitCount));
@@ -1205,12 +1382,20 @@ export const subscribeToUsers = (callback: (users: User[]) => void, limitCount =
         callback(Array.from(map.values()));
       },
       (error) => {
-        console.warn('Users real-time listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'users');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to users:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'users');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -1361,35 +1546,42 @@ export const loadMorePostsFromFirestore = async (limitCount = 15): Promise<Post[
   return getPostsFromFirestore(limitCount, false);
 };
 
-export const subscribeToPosts = (callback: (posts: Post[]) => void, limitCount = 15): (() => void) => {
+export const subscribeToPosts = (callback: (posts: Post[]) => void, limitCount = 50): (() => void) => {
   try {
     const postsRef = collection(db, 'posts');
     const q = query(postsRef, limit(limitCount));
-    const localCache = new Map<string, Post>();
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        const result: Post[] = [];
         snapshot.forEach((docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
             const p = normalizePost({ ...data, id: docSnap.id });
             if (p && p.id) {
-              localCache.set(p.id, p);
+              result.push(p);
             }
           }
         });
-        const result = Array.from(localCache.values());
         // Sort descending so newly added posts (highest timestamp) stay at the top
         result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
         callback(result);
       },
       (error) => {
-        console.warn('Posts real-time listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'posts');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to posts:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'posts');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -1466,17 +1658,25 @@ export const subscribeToChatMessages = (threadId: string, callback: (messages: M
         callback(msgs);
       },
       (error) => {
-        console.warn('Chat messages real-time listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, `chat_threads/${threadId}/messages`);
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to chat messages:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, `chat_threads/${threadId}/messages`);
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
 
-export const getChatThreadsFromFirestore = async (limitCount = 25): Promise<ChatThread[]> => {
+export const getChatThreadsFromFirestore = async (limitCount = 50): Promise<ChatThread[]> => {
   try {
     await ensureFirebaseAuth();
     const threadsRef = collection(db, 'chat_threads');
@@ -1495,7 +1695,7 @@ export const getChatThreadsFromFirestore = async (limitCount = 25): Promise<Chat
   }
 };
 
-export const subscribeToChatThreads = (callback: (threads: ChatThread[]) => void, userId: string, limitCount = 25): (() => void) => {
+export const subscribeToChatThreads = (callback: (threads: ChatThread[]) => void, userId: string, limitCount = 50): (() => void) => {
   if (!userId) return () => {};
   try {
     const threadsRef = collection(db, 'chat_threads');
@@ -1513,17 +1713,23 @@ export const subscribeToChatThreads = (callback: (threads: ChatThread[]) => void
             result.push(normalizeChatThread(docSnap.data()));
           }
         });
-        if (result.length > 0) {
-          callback(result);
-        }
+        callback(result);
       },
       (error) => {
-        console.warn('Chat threads real-time listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'chat_threads');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to chat threads:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'chat_threads');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -1604,7 +1810,7 @@ export const getStoriesFromFirestore = async (): Promise<Story[]> => {
   try {
     await ensureFirebaseAuth();
     const storiesRef = collection(db, 'stories');
-    const q = query(storiesRef, limit(20));
+    const q = query(storiesRef, limit(30));
     const querySnapshot = await getDocs(q);
     const result: Story[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -1622,7 +1828,7 @@ export const getStoriesFromFirestore = async (): Promise<Story[]> => {
 export const subscribeToStories = (callback: (stories: Story[]) => void): (() => void) => {
   try {
     const storiesRef = collection(db, 'stories');
-    const q = query(storiesRef, limit(20));
+    const q = query(storiesRef, limit(30));
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
@@ -1632,17 +1838,23 @@ export const subscribeToStories = (callback: (stories: Story[]) => void): (() =>
             result.push(normalizeStory(docSnap.data()));
           }
         });
-        if (result.length > 0) {
-          callback(result);
-        }
+        callback(result);
       },
       (error) => {
-        console.warn('Stories real-time listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'stories');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to stories:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'stories');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -1681,7 +1893,7 @@ export const getNotificationsFromFirestore = async (): Promise<NotificationItem[
   try {
     await ensureFirebaseAuth();
     const notifsRef = collection(db, 'notifications');
-    const q = query(notifsRef, limit(20));
+    const q = query(notifsRef, limit(30));
     const querySnapshot = await getDocs(q);
     const result: NotificationItem[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -1703,7 +1915,7 @@ export const subscribeToNotifications = (callback: (notifications: NotificationI
     const q = query(
       notifsRef, 
       where('targetUserId', '==', userId),
-      limit(20)
+      limit(30)
     );
     const unsubscribe = onSnapshot(
       q,
@@ -1714,17 +1926,23 @@ export const subscribeToNotifications = (callback: (notifications: NotificationI
             result.push(normalizeNotification(docSnap.data()));
           }
         });
-        if (result.length > 0) {
-          callback(result);
-        }
+        callback(result);
       },
       (error) => {
-        console.warn('Notifications real-time listener notice:', error?.message || error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'notifications');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to notifications:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'notifications');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -1833,12 +2051,20 @@ export const subscribeToUniversalReports = (callback: (reports: any[]) => void):
         callback(reports);
       },
       (error) => {
-        console.warn('Universal reports snapshot error:', error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'universal_reports');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to universal reports:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'universal_reports');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
@@ -1892,12 +2118,20 @@ export const subscribeToAllPosts = (callback: (posts: Post[]) => void): (() => v
         callback(postsList);
       },
       (error) => {
-        console.warn('All posts listener subscription warning:', error);
+        try {
+          handleFirestoreError(error, OperationType.GET, 'posts');
+        } catch {
+          // Handled and error logged via handleFirestoreError
+        }
       }
     );
     return unsubscribe;
   } catch (err) {
-    console.warn('Failed to subscribe to all posts:', err);
+    try {
+      handleFirestoreError(err, OperationType.GET, 'posts');
+    } catch {
+      // Handled and error logged via handleFirestoreError
+    }
     return () => {};
   }
 };
