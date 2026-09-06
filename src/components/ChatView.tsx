@@ -638,6 +638,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isGroupInfoModalOpen, setIsGroupInfoModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const dynamicThreads = useMemo(() => {
     return threads.map(thread => {
@@ -914,7 +915,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 relative no-scrollbar" style={wallStyles}>
+        <div
+          ref={chatContainerRef}
+          className="flex-1 overflow-y-auto overscroll-contain h-[calc(100vh-140px)] p-4 relative no-scrollbar"
+          style={{ ...wallStyles, WebkitOverflowScrolling: 'touch' }}
+        >
           <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(241, 245, 249, ${threadWallpaper.dimming / 100})`, backdropFilter: `blur(${threadWallpaper.blur}px)` }} />
           <div className="relative z-10 flex flex-col gap-4 pb-2">
             {messages.length === 0 && (
