@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StoriesSection } from '../StoriesSection';
 import { FeedCard } from '../FeedCard';
 import { User, Post, Story } from '../../types';

@@ -140,7 +140,6 @@ const LoadingSpinner = () => (
 function AppContent() {
   const { navState, goBack, navigateToTab, openUserProfile, popUserProfile, openChatThread, closeChatThread, openStoryViewer, closeStoryViewer, openComments, closeComments, openShareSheet, closeShareSheet, openNotifications, closeNotifications, openSettings, closeSettings, openPostPreview, closePostPreview, canGoBack } = useNavigation();
   const { user, loading } = useAuth();
-
   const [currentUser, setCurrentUser] = useState<User>(() => {
     try {
       const saved = localStorage.getItem('funshann_current_user');
@@ -308,6 +307,7 @@ function AppContent() {
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isCreatingStory, setIsCreatingStory] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1763,7 +1763,7 @@ function AppContent() {
         )}
       </AnimatePresence>
 
-      {!showSplash && !loading && !user ? (
+      {!showSplash && !loading && !user && (!currentUser || !currentUser.id) ? (
         <WelcomeAuthScreen theme={theme} onAuthenticate={handleAuthenticate} />
       ) : (
         !showSplash && !loading && (
