@@ -778,6 +778,7 @@ export const normalizeUser = (u: any): User => {
     isVerified: Boolean(u.isVerified),
     isFollowing: Boolean(u.isFollowing),
     isOnline: Boolean(u.isOnline),
+    lastSeen: u.lastSeen ?? null,
     role: u.role || 'user',
     status: u.status || 'active',
     registrationDate: u.registrationDate || '',
