@@ -32,7 +32,7 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({
         paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
-      <div className="w-full flex-1 flex flex-col relative">
+      <div className=<div className="w-full flex-1 min-h-0 flex flex-col relative">
         {children}
       </div>
     </div>
