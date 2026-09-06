@@ -1944,7 +1944,7 @@ function AppContent() {
       )}
 
       {/* Main Tab Views */}
-      <main className="w-full flex-1 min-h-0 overflow-hidden">
+      <main className="w-full flex-1">
         <Suspense fallback={<LoadingSpinner />}>
           {activeTab === 'home' && (
             <HomeTab

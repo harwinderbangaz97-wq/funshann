@@ -20,7 +20,7 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({
   return (
     <div
       data-theme={theme}
-      className={`h-[100dvh] w-full ${getContentBg()} flex flex-col relative overflow-x-hidden transition-colors duration-300`}
+      className={`min-h-[100dvh] w-full ${getContentBg()} flex flex-col relative overflow-x-hidden transition-colors duration-300`}
       style={{
         paddingTop: 'env(safe-area-inset-top, 0px)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
@@ -28,7 +28,7 @@ export const DeviceFrame: React.FC<DeviceFrameProps> = ({
         paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
-      <div className="w-full flex-1 min-h-0 flex flex-col relative">
+      <div className="w-full flex-1 flex flex-col relative">
         {children}
       </div>
     </div>

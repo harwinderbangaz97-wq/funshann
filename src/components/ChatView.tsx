@@ -874,7 +874,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
 
     return (
-      <div className="h-full flex flex-col min-h-0 bg-slate-50 relative overflow-hidden animate-in fade-in slide-in-from-right-4 duration-400">
+      <div className="h-[100dvh] flex flex-col min-h-0 bg-slate-50 relative overflow-hidden animate-in fade-in slide-in-from-right-4 duration-400">
         <div className="flex items-center justify-between p-3 sm:p-4 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 z-30 shadow-sm flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -1066,7 +1066,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 animate-in fade-in duration-500">
+    <div className="min-h-screen flex flex-col bg-slate-50 animate-in fade-in duration-500">
       <div className="p-4 sm:p-6 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 z-20 sticky top-0 shadow-xs">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-3">
