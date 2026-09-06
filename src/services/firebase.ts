@@ -1334,7 +1334,7 @@ export const getUsersByIdsFromFirestore = async (userIds: string[], knownUsers: 
     }
   }
 
-  return result;
+  return filterAndDeduplicateUsers(result);
 };
 
 export const getFollowersListForUser = async (targetUserId: string, knownUsers: User[] = []): Promise<User[]> => {
@@ -1494,6 +1494,58 @@ export const getUsernameByEmail = async (email: string): Promise<string | null> 
   }
 };
 
+function filterAndDeduplicateUsers(users: User[]): User[] {
+  const emailMap = new Map<string, User>();
+  const usernameMap = new Map<string, User>();
+  const result: User[] = [];
+
+  for (const u of users) {
+    if (!u || !u.id) continue;
+    
+    // Identify Demo users
+    const isDemo = 
+      u.email?.toLowerCase().includes('example.com') ||
+      u.email?.toLowerCase().includes('demo') ||
+      u.email?.toLowerCase().includes('test') ||
+      u.username?.toLowerCase().includes('demo') ||
+      u.username?.toLowerCase().includes('test') ||
+      u.name?.toLowerCase().includes('demo') ||
+      u.name?.toLowerCase().includes('test') ||
+      (u.name && u.name.includes('Mock')) ||
+      (u.username && u.username.includes('mock'));
+
+    if (isDemo) {
+      // Fire and forget delete if we happen to fetch a demo user
+      // Even if it fails due to quota, we hide it from the UI immediately
+      try { deleteDoc(doc(db, 'users', u.id)).catch(() => {}); } catch(e){}
+      continue;
+    }
+
+    // Identify duplicates by email
+    if (u.email) {
+      const email = u.email.toLowerCase();
+      if (emailMap.has(email)) {
+        try { deleteDoc(doc(db, 'users', u.id)).catch(() => {}); } catch(e){}
+        continue;
+      }
+      emailMap.set(email, u);
+    }
+
+    // Identify duplicates by username
+    if (u.username) {
+      const username = u.username.toLowerCase();
+      if (usernameMap.has(username)) {
+        try { deleteDoc(doc(db, 'users', u.id)).catch(() => {}); } catch(e){}
+        continue;
+      }
+      usernameMap.set(username, u);
+    }
+
+    result.push(u);
+  }
+  return result;
+};
+
 export const subscribeToUsers = (callback: (users: User[]) => void, limitCount = 50): (() => void) => {
   try {
     const usersRef = collection(db, 'users');
@@ -1510,7 +1562,7 @@ export const subscribeToUsers = (callback: (users: User[]) => void, limitCount =
             }
           }
         });
-        callback(Array.from(map.values()));
+        callback(filterAndDeduplicateUsers(Array.from(map.values())));
       },
       async (error) => {
         console.warn('Firestore subscribeToUsers snapshot notice:', error?.message || error);
@@ -1525,7 +1577,7 @@ export const subscribeToUsers = (callback: (users: User[]) => void, limitCount =
               }
             }
           });
-          if (map.size > 0) callback(Array.from(map.values()));
+          if (map.size > 0) callback(filterAndDeduplicateUsers(Array.from(map.values())));
         } catch {
           // Cache empty or fallback
         }
@@ -1553,7 +1605,7 @@ export const getUsersFromFirestore = async (limitCount = 30): Promise<User[]> =>
         }
       }
     });
-    return Array.from(map.values());
+    return filterAndDeduplicateUsers(Array.from(map.values()));
   } catch (error) {
     console.warn('Firestore getUsers remote fallback, checking cache:', error);
     try {
@@ -1567,7 +1619,7 @@ export const getUsersFromFirestore = async (limitCount = 30): Promise<User[]> =>
           }
         }
       });
-      return Array.from(map.values());
+      return filterAndDeduplicateUsers(Array.from(map.values()));
     } catch {
       return [];
     }
