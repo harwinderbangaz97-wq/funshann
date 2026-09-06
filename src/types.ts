@@ -45,6 +45,7 @@ export interface User {
   isVerified?: boolean;
   isFollowing?: boolean;
   isOnline?: boolean;
+  lastSeen?: any;
   status?: 'active' | 'suspended';
   role?: string;
   registrationDate?: string;
