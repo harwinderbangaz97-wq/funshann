@@ -139,7 +139,7 @@ const LoadingSpinner = () => (
 
 function AppContent() {
   const { navState, goBack, navigateToTab, openUserProfile, popUserProfile, openChatThread, closeChatThread, openStoryViewer, closeStoryViewer, openComments, closeComments, openShareSheet, closeShareSheet, openNotifications, closeNotifications, openSettings, closeSettings, openPostPreview, closePostPreview, canGoBack } = useNavigation();
-  const { user, loading } = useAuth();
+  const { user, loading, authInitialized } = useAuth();
   const [currentUser, setCurrentUser] = useState<User>(() => {
     try {
       const saved = localStorage.getItem('funshann_current_user');
@@ -1763,7 +1763,7 @@ function AppContent() {
         )}
       </AnimatePresence>
 
-      {!showSplash && !loading && !user && (!currentUser || !currentUser.id) ? (
+      {!showSplash && authInitialized && !user && (!currentUser || !currentUser.id) ? (
         <WelcomeAuthScreen theme={theme} onAuthenticate={handleAuthenticate} />
       ) : (
         !showSplash && !loading && (

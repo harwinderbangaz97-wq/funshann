@@ -61,7 +61,7 @@ import { parseTimestampToMs, formatRelativeTime, format12HourTime, formatDetaile
 // Exact live Firebase Configuration
 export const firebaseConfig = {
   apiKey: "AIzaSyCMiX4Gx8vqrFFqfl3XBsLfMZI5hCpySDg",
-  authDomain: "funshann.blogspot.com",
+  authDomain: "gen-lang-client-0528558677.firebaseapp.com",
   projectId: "gen-lang-client-0528558677",
   storageBucket: "gen-lang-client-0528558677.firebasestorage.app",
   messagingSenderId: "585330478854",

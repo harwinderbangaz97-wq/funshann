@@ -29,8 +29,6 @@ import {
   GoogleAuthProvider,
   FacebookAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
@@ -227,34 +225,6 @@ export const WelcomeAuthScreen: React.FC<WelcomeAuthScreenProps> = ({
     return () => clearTimeout(checkDebounce);
   }, [username]);
 
-  // Check redirect auth results on mount (for mobile/safari redirects)
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result?.user) {
-          setIsLoading(true);
-          const u = result.user;
-          const existing = await getUserProfileFromFirestore(u.uid);
-          const userObj: Partial<User> = {
-            id: u.uid,
-            name: u.displayName || existing?.name || 'Funshann Member',
-            username: existing?.username || (u.displayName || u.email?.split('@')[0] || 'google_user').toLowerCase().replace(/[^a-z0-9_]/g, ''),
-            email: u.email || undefined,
-            avatar: u.photoURL || existing?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
-            bio: existing?.bio || `Creating vibes on Funshann ✨ | Connected with Google`,
-          };
-          await syncUserProfileToFirestore(userObj);
-          onAuthenticate(userObj as User);
-        }
-      })
-      .catch((err) => {
-        console.warn('Redirect authentication result check:', err);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [onAuthenticate]);
-
   // Handle Google Popup / Redirect authentication
   const handleGoogleSignIn = async () => {
     setErrorMessage('');
@@ -263,39 +233,21 @@ export const WelcomeAuthScreen: React.FC<WelcomeAuthScreenProps> = ({
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const isInIframe = window.self !== window.top;
-
-      try {
-        const res = await signInWithPopup(auth, provider);
-        if (res.user) {
-          const u = res.user;
-          const existing = await getUserProfileFromFirestore(u.uid);
-          const userObj: Partial<User> = {
-            id: u.uid,
-            name: u.displayName || existing?.name || 'Funshann Member',
-            username: existing?.username || (u.displayName || u.email?.split('@')[0] || 'google_user').toLowerCase().replace(/[^a-z0-9_]/g, ''),
-            email: u.email || undefined,
-            avatar: u.photoURL || existing?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
-            bio: existing?.bio || `Creating vibes on Funshann ✨ | Connected with Google`,
-          };
-          await syncUserProfileToFirestore(userObj);
-          onAuthenticate(userObj as User);
-        }
-      } catch (popupErr: any) {
-        if (
-          popupErr?.code === 'auth/network-request-failed' ||
-          popupErr?.message?.includes('network-request-failed')
-        ) {
-          if (isInIframe) {
-            setErrorMessage(
-              'Google Sign-In popup request was restricted inside preview iframe. Please open the app in a new tab or use standard Email login.'
-            );
-          } else {
-            await signInWithRedirect(auth, provider);
-          }
-        } else {
-          throw popupErr;
-        }
+      
+      const res = await signInWithPopup(auth, provider);
+      if (res.user) {
+        const u = res.user;
+        const existing = await getUserProfileFromFirestore(u.uid);
+        const userObj: Partial<User> = {
+          id: u.uid,
+          name: u.displayName || existing?.name || 'Funshann Member',
+          username: existing?.username || (u.displayName || u.email?.split('@')[0] || 'google_user').toLowerCase().replace(/[^a-z0-9_]/g, ''),
+          email: u.email || undefined,
+          avatar: u.photoURL || existing?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop&q=80',
+          bio: existing?.bio || `Creating vibes on Funshann ✨ | Connected with Google`,
+        };
+        await syncUserProfileToFirestore(userObj);
+        onAuthenticate(userObj as User);
       }
     } catch (error: any) {
       console.error('Google Sign-In error:', error);
