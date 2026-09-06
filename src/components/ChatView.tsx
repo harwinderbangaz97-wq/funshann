@@ -1132,8 +1132,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   alt={activeThread.isGroup ? activeThread.groupName : (resolvedParticipant?.name || 'Contact')}
                   className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm group-hover:scale-105 transition-transform"
                 />
-                {!activeThread.isGroup && resolvedParticipant?.isOnline && (
-                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
+                {!activeThread.isGroup && (
+                  <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full shadow-sm ${resolvedParticipant?.isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                 )}
               </div>
               <div className="min-w-0">
@@ -1151,8 +1151,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </span>
                     </p>
                   ) : (
-                    <p className="text-[10px] font-medium text-emerald-600 animate-pulse">
-                      {resolvedParticipant?.isOnline ? 'Active Now' : 'Last seen recently'}
+                    <p className={`text-[10px] font-medium ${resolvedParticipant?.isOnline ? 'text-emerald-600 animate-pulse' : 'text-slate-500'}`}>
+                      {resolvedParticipant?.isOnline
+                        ? 'Online'
+                        : resolvedParticipant?.lastActive
+                        ? `Offline • Last active ${formatRelativeTime(resolvedParticipant.lastActive)}`
+                        : 'Offline'}
                     </p>
                   )
                 ) : (
