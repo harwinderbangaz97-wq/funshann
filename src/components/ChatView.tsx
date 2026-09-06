@@ -917,7 +917,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
         <div
           ref={chatContainerRef}
-          className="flex-1 overflow-y-auto overscroll-contain h-[calc(100vh-140px)] p-4 relative no-scrollbar"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 relative no-scrollbar"
           style={{ ...wallStyles, WebkitOverflowScrolling: 'touch' }}
         >
           <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(241, 245, 249, ${threadWallpaper.dimming / 100})`, backdropFilter: `blur(${threadWallpaper.blur}px)` }} />
