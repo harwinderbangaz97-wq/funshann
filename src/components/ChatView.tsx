@@ -748,9 +748,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [globalWallpaper, setGlobalWallpaper] = useState<ChatWallpaperSettings>(() => {
     try {
       const saved = localStorage.getItem('funshann_global_chat_wallpaper');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.wallpaperId === 'clean-default' && parsed.dimming === 15) {
+          parsed.dimming = 0;
+        }
+        return parsed;
+      }
     } catch {}
-    return { wallpaperId: 'clean-default', dimming: 15, blur: 0, applyToAll: true };
+    return { wallpaperId: 'clean-default', dimming: 0, blur: 0, applyToAll: true };
   });
 
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -1238,8 +1244,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           onChange={handleGalleryFileChange}
         />
 
-        {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5 bg-white/85 backdrop-blur-xl border-b border-slate-200/70 z-30 shadow-xs flex-shrink-0">
+        {/* Top Header Bar with Safe-Area Clearance for mobile status bar */}
+        <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),16px)] pb-2.5 sm:px-4 sm:pt-4 sm:pb-3 bg-white/95 backdrop-blur-xl border-b border-slate-200/70 z-30 shadow-xs flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onBackToList}
@@ -1305,127 +1311,142 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         </div>
 
-        {/* Chat Messages Canvas with Wallpaper Support */}
-        <div
-          ref={chatContainerRef}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 relative no-scrollbar"
-          style={{ ...wallStyles, WebkitOverflowScrolling: 'touch' }}
-        >
-          {/* Wallpaper Dimming & Blur Overlay */}
+        {/* Chat Messages Canvas with Dedicated Full-Coverage Wallpaper Layer */}
+        <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
+          {/* Permanent Full-Coverage Wallpaper Layer - stays fixed behind messages without scrolling glitches */}
           <div
             className="absolute inset-0 z-0 pointer-events-none"
             style={{
-              backgroundColor: `rgba(0, 0, 0, ${(threadWallpaper.dimming || 0) / 100})`,
-              backdropFilter: threadWallpaper.blur ? `blur(${threadWallpaper.blur}px)` : undefined,
+              ...wallStyles,
+              backgroundAttachment: 'fixed',
             }}
-          />
-
-          <div className="relative z-10 flex flex-col gap-2 pb-2">
-            {/* Pull to Refresh Indicator & History Loader */}
-            <div className="flex flex-col items-center justify-center -mt-1 mb-1">
-              {(isPulling || isLoadingOlder) && (
-                <div
-                  className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-full bg-white/95 backdrop-blur-md shadow-sm border border-slate-200/80 text-xs font-semibold text-slate-700 transition-all duration-200"
-                  style={{
-                    transform: `translateY(${Math.min(pullDistance, 35)}px)`,
-                    opacity: Math.max(0.6, Math.min(1, (pullDistance + 10) / 40)),
-                  }}
-                >
-                  {isLoadingOlder ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 text-[#5B9DFF] animate-spin" />
-                      <span>Loading older messages...</span>
-                    </>
-                  ) : pullDistance >= 45 ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 text-[#5B9DFF] animate-spin" />
-                      <span>Release to load older history</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDown
-                        className="w-3.5 h-3.5 text-slate-400 transition-transform duration-150"
-                        style={{ transform: `rotate(${Math.min(180, (pullDistance / 45) * 180)}deg)` }}
-                      />
-                      <span>Pull down to load older messages</span>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {!isPulling && !isLoadingOlder && hasMoreOlder && messages.length >= 10 && (
-                <button
-                  onClick={handleLoadOlderMessages}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 hover:bg-white text-slate-600 hover:text-[#5B9DFF] border border-slate-200/70 text-[11px] font-semibold shadow-2xs transition-all cursor-pointer group"
-                >
-                  <RefreshCw className="w-3 h-3 text-slate-400 group-hover:text-[#5B9DFF] group-hover:rotate-180 transition-all duration-300" />
-                  <span>Load older messages</span>
-                </button>
-              )}
-
-              {!hasMoreOlder && messages.length >= 15 && (
-                <div className="text-[10px] text-slate-400 font-medium py-1">
-                  Beginning of conversation history
-                </div>
-              )}
-            </div>
-
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 text-center space-y-3 opacity-60">
-                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-xs neu-raised">
-                  <Sparkles className="w-7 h-7 text-[#5B9DFF]" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">No messages yet</p>
-                  <p className="text-xs text-slate-500">Send a message to start chatting</p>
-                </div>
-              </div>
+          >
+            {/* Wallpaper Dimming & Blur Overlay covering the full chat canvas */}
+            {(threadWallpaper.dimming > 0 || threadWallpaper.blur > 0) && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  backgroundColor: `rgba(0, 0, 0, ${(threadWallpaper.dimming || 0) / 100})`,
+                  backdropFilter: threadWallpaper.blur ? `blur(${threadWallpaper.blur}px)` : undefined,
+                  WebkitBackdropFilter: threadWallpaper.blur ? `blur(${threadWallpaper.blur}px)` : undefined,
+                }}
+              />
             )}
+          </div>
 
-            {/* Messages with sleek Date Dividers */}
-            {messages.map((m, idx) => {
-              const prevMsg = idx > 0 ? messages[idx - 1] : null;
-              const currentDateDivider = formatChatDateDivider(m.createdAt);
-              const prevDateDivider = prevMsg ? formatChatDateDivider(prevMsg.createdAt) : null;
-              const showDateDivider = !prevMsg || currentDateDivider !== prevDateDivider;
-
-              return (
-                <React.Fragment key={m.id}>
-                  {showDateDivider && (
-                    <div className="flex items-center justify-center my-2">
-                      <span className="px-3 py-1 rounded-full neu-inset text-[11px] font-semibold text-slate-500 select-none uppercase tracking-wider">
-                        {currentDateDivider}
-                      </span>
-                    </div>
-                  )}
-                  <MessageBubbleItem
-                    msg={m}
-                    isMyMessage={m.senderId === (currentUser.uid || currentUser.id)}
-                    activeThreadId={activeThread.id}
-                    currentUserId={currentUser.uid || currentUser.id || ''}
-                    onOpenContextMenu={setContextMessage}
-                    onForward={setForwardTargetMessage}
-                    onImageClick={setLightboxImage}
-                    onToggleReaction={(messageId, emoji) => {
-                      if (onToggleReaction && activeThread) onToggleReaction(activeThread.id, messageId, emoji);
+          {/* Scrollable Messages Canvas */}
+          <div
+            ref={chatContainerRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 relative z-10 no-scrollbar bg-transparent"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
+            <div className="relative z-10 flex flex-col gap-2 pb-2">
+              {/* Pull to Refresh Indicator & History Loader */}
+              <div className="flex flex-col items-center justify-center -mt-1 mb-1">
+                {(isPulling || isLoadingOlder) && (
+                  <div
+                    className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-full bg-white/95 backdrop-blur-md shadow-sm border border-slate-200/80 text-xs font-semibold text-slate-700 transition-all duration-200"
+                    style={{
+                      transform: `translateY(${Math.min(pullDistance, 35)}px)`,
+                      opacity: Math.max(0.6, Math.min(1, (pullDistance + 10) / 40)),
                     }}
-                  />
-                </React.Fragment>
-              );
-            })}
+                  >
+                    {isLoadingOlder ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 text-[#5B9DFF] animate-spin" />
+                        <span>Loading older messages...</span>
+                      </>
+                    ) : pullDistance >= 45 ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 text-[#5B9DFF] animate-spin" />
+                        <span>Release to load older history</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDown
+                          className="w-3.5 h-3.5 text-slate-400 transition-transform duration-150"
+                          style={{ transform: `rotate(${Math.min(180, (pullDistance / 45) * 180)}deg)` }}
+                        />
+                        <span>Pull down to load older messages</span>
+                      </>
+                    )}
+                  </div>
+                )}
 
-            {activeThread.isTyping && (typingParticipant || resolvedParticipant) && (
-              <TypingIndicatorBubble participant={typingParticipant || resolvedParticipant!} />
-            )}
-            <div ref={messagesEndRef} className="h-2" />
+                {!isPulling && !isLoadingOlder && hasMoreOlder && messages.length >= 10 && (
+                  <button
+                    onClick={handleLoadOlderMessages}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 hover:bg-white text-slate-600 hover:text-[#5B9DFF] border border-slate-200/70 text-[11px] font-semibold shadow-2xs transition-all cursor-pointer group"
+                  >
+                    <RefreshCw className="w-3 h-3 text-slate-400 group-hover:text-[#5B9DFF] group-hover:rotate-180 transition-all duration-300" />
+                    <span>Load older messages</span>
+                  </button>
+                )}
+
+                {!hasMoreOlder && messages.length >= 15 && (
+                  <div className="text-[10px] text-slate-400 font-medium py-1">
+                    Beginning of conversation history
+                  </div>
+                )}
+              </div>
+
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-center space-y-3 opacity-60">
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-xs neu-raised">
+                    <Sparkles className="w-7 h-7 text-[#5B9DFF]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">No messages yet</p>
+                    <p className="text-xs text-slate-500">Send a message to start chatting</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Messages with sleek Date Dividers */}
+              {messages.map((m, idx) => {
+                const prevMsg = idx > 0 ? messages[idx - 1] : null;
+                const currentDateDivider = formatChatDateDivider(m.createdAt);
+                const prevDateDivider = prevMsg ? formatChatDateDivider(prevMsg.createdAt) : null;
+                const showDateDivider = !prevMsg || currentDateDivider !== prevDateDivider;
+
+                return (
+                  <React.Fragment key={m.id}>
+                    {showDateDivider && (
+                      <div className="flex items-center justify-center my-2">
+                        <span className="px-3 py-1 rounded-full neu-inset text-[11px] font-semibold text-slate-500 select-none uppercase tracking-wider">
+                          {currentDateDivider}
+                        </span>
+                      </div>
+                    )}
+                    <MessageBubbleItem
+                      msg={m}
+                      isMyMessage={m.senderId === (currentUser.uid || currentUser.id)}
+                      activeThreadId={activeThread.id}
+                      currentUserId={currentUser.uid || currentUser.id || ''}
+                      onOpenContextMenu={setContextMessage}
+                      onForward={setForwardTargetMessage}
+                      onImageClick={setLightboxImage}
+                      onToggleReaction={(messageId, emoji) => {
+                        if (onToggleReaction && activeThread) onToggleReaction(activeThread.id, messageId, emoji);
+                      }}
+                    />
+                  </React.Fragment>
+                );
+              })}
+
+              {activeThread.isTyping && (typingParticipant || resolvedParticipant) && (
+                <TypingIndicatorBubble participant={typingParticipant || resolvedParticipant!} />
+              )}
+              <div ref={messagesEndRef} className="h-2" />
+            </div>
           </div>
         </div>
 
         {/* Input Bar & Multi-Photo Attachment Previews */}
-        <div className="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md border-t border-slate-200/70 z-30 flex-shrink-0">
+        <div className="p-2 pb-[max(env(safe-area-inset-bottom),8px)] sm:p-2.5 bg-white/95 backdrop-blur-md border-t border-slate-200/70 z-30 flex-shrink-0">
           {attachedImages.length > 0 && !isRecordingVoice && (
             <div className="mb-2 flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1">
               {attachedImages.map((imgUrl, i) => (
@@ -1669,7 +1690,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 animate-in fade-in duration-500">
-      <div className="p-4 sm:p-6 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 z-20 sticky top-0 shadow-xs">
+      <div className="p-4 pt-[max(env(safe-area-inset-top),16px)] sm:p-6 sm:pt-6 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 z-20 sticky top-0 shadow-xs">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-3">
             <button onClick={onBackToHome} className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
