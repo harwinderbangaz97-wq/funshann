@@ -12,6 +12,8 @@
     <meta property="og:description" content="Connect and share on Funshann✨" />
     <meta property="og:url" content="https://funshann.blogspot.com" />
     <meta name="theme-color" content="#0F172A" />
+    <script type="module" crossorigin src="./assets/index-brwth-Y6.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Dgaz-sgG.css">
   </head>
   <body class="bg-[#f4f7fb] text-[#1e293b] antialiased selection:bg-[#5B9DFF]/20 selection:text-[#1d4ed8] overflow-x-hidden">
     <div id="root">
@@ -26,26 +28,8 @@
     <!-- Permanent DOM container for Firebase Phone Auth invisible reCAPTCHA -->
     <div id="recaptcha-container"></div>
 
-    <!-- REDIRECT_ROOT_TO_DOCS_START -->
-    <script>
-      // If served directly on static hosting (like GitHub Pages serving repo root),
-      // forward to the built production application in docs/ immediately before TSX parse failure
-      (function() {
-        var host = window.location.hostname;
-        var port = window.location.port;
-        var isLocalOrDev = host === 'localhost' || host === '127.0.0.1' || host.indexOf('.run.app') !== -1 || (port && port !== '80' && port !== '443');
-        if (!isLocalOrDev) {
-          var p = window.location.pathname;
-          var dir = p.substring(0, p.lastIndexOf('/') + 1);
-          if (!p.includes('/docs') && !p.includes('/dist') && !p.includes('standalone')) {
-            window.location.replace(dir + 'docs/' + window.location.search + window.location.hash);
-          }
-        }
-      })();
-    </script>
-    <!-- REDIRECT_ROOT_TO_DOCS_END -->
+    
 
-    <script type="module" src="/src/main.tsx"></script>
     <script>
       // Fallback for primary script load errors
       window.addEventListener('error', function(e) {

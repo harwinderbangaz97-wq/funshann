@@ -66,14 +66,56 @@ ${jsContent}
 const outPathDist = path.join(distDir, 'standalone.html');
 fs.writeFileSync(outPathDist, standaloneHtml, 'utf-8');
 
+// Ensure root standalone.html
+const outPathRoot = path.resolve(process.cwd(), 'standalone.html');
+fs.writeFileSync(outPathRoot, standaloneHtml, 'utf-8');
+
+// Ensure .nojekyll in dist, root, and public to prevent GitHub Pages Jekyll processing
+fs.writeFileSync(path.join(distDir, '.nojekyll'), '', 'utf-8');
+fs.writeFileSync(path.resolve(process.cwd(), '.nojekyll'), '', 'utf-8');
+
 const publicDir = path.resolve(process.cwd(), 'public');
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
 }
 const outPathPublic = path.join(publicDir, 'standalone.html');
 fs.writeFileSync(outPathPublic, standaloneHtml, 'utf-8');
+fs.writeFileSync(path.join(publicDir, '.nojekyll'), '', 'utf-8');
+
+// Strip root-to-docs redirect from dist/index.html so docs/ can be served as root without redirect loops
+const distIndexHtml = path.join(distDir, 'index.html');
+if (fs.existsSync(distIndexHtml)) {
+  let indexContent = fs.readFileSync(distIndexHtml, 'utf-8');
+  indexContent = indexContent.replace(/<!-- REDIRECT_ROOT_TO_DOCS_START -->[\s\S]*?<!-- REDIRECT_ROOT_TO_DOCS_END -->/g, '');
+  fs.writeFileSync(distIndexHtml, indexContent, 'utf-8');
+  fs.writeFileSync(path.join(distDir, '404.html'), indexContent, 'utf-8');
+}
+
+// Sync dist/assets to root ./assets for root deployment fallback
+const rootAssetsDir = path.resolve(process.cwd(), 'assets');
+try {
+  if (fs.existsSync(rootAssetsDir)) {
+    fs.rmSync(rootAssetsDir, { recursive: true, force: true });
+  }
+  fs.cpSync(assetsDir, rootAssetsDir, { recursive: true });
+} catch (e) {
+  console.warn('Could not sync assets to root:', e);
+}
+
+// Sync to docs/ directory for GitHub Pages "Deploy from branch (/docs)" support
+const docsDir = path.resolve(process.cwd(), 'docs');
+try {
+  if (fs.existsSync(docsDir)) {
+    fs.rmSync(docsDir, { recursive: true, force: true });
+  }
+  fs.cpSync(distDir, docsDir, { recursive: true });
+  console.log(' - ' + docsDir + ' (Synced for GitHub Pages /docs deploy)');
+} catch (e) {
+  console.warn('Could not sync to docs directory:', e);
+}
 
 console.log('Successfully created standalone HTML bundle at:');
 console.log(' - ' + outPathDist);
+console.log(' - ' + outPathRoot);
 console.log(' - ' + outPathPublic);
 console.log('File size: ' + (Buffer.byteLength(standaloneHtml, 'utf-8') / (1024 * 1024)).toFixed(2) + ' MB');

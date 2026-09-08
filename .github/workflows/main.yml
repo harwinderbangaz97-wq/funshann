@@ -24,8 +24,12 @@ jobs:
       - name: Build web app
         run: npm run build
 
-      - name: Fix asset paths
-        run: sed -i 's|/funshann/|./|g' dist/index.html
+      - name: Ensure .nojekyll and verify assets
+        run: |
+          touch dist/.nojekyll
+          # Ensure relative paths for github pages hosting under any domain or subpath
+          sed -i 's|"/assets/|"./assets/|g' dist/index.html || true
+          sed -i 's|/funshann/|./|g' dist/index.html || true
 
       - name: Deploy to GitHub Pages
         uses: actions/upload-pages-artifact@v3
