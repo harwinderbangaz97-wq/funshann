@@ -50,6 +50,7 @@ import {
 import { User, VoiceNoteData } from '../types';
 import { syncCommunityToFirestore } from '../services/firebase';
 import { format12HourTime } from '../services/timeUtils';
+import { VoiceWaveformIcon, GalleryCardsIcon } from './ChatView';
 
 export interface CommunityMessage {
   id: string;
@@ -1104,89 +1105,80 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
 
                   <form
                     onSubmit={handleSendMessage}
-                    className="neu-flat rounded-full p-1.5 flex items-center gap-1.5 bg-white border border-slate-200/80 shadow-sm"
+                    className="flex items-center gap-2 sm:gap-2.5"
                   >
-                    {/* Gallery / Attachment Popover Button */}
+                    {/* 1. Black Circle Camera Button */}
                     <button
                       type="button"
-                      onClick={() => photoInputRef.current?.click()}
-                      className={`w-9 h-9 rounded-full neu-raised flex items-center justify-center transition cursor-pointer shrink-0 ${
-                        attachedMedia
-                          ? 'text-[#5B9DFF] ring-2 ring-[#5B9DFF]/40'
-                          : 'text-slate-500 hover:text-[#5B9DFF]'
-                      }`}
-                      title="Attach Media"
+                      disabled={isMuted}
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-black text-white flex items-center justify-center shrink-0 shadow-sm hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                      title="Take Photo"
                     >
-                      <ImageIcon className="w-4 h-4" />
+                      <Camera className="w-5 h-5 sm:w-5.5 sm:h-5.5 stroke-[2.2]" />
                     </button>
 
-                    {/* Emoji Picker Button */}
-                    <button
-                      type="button"
-                      onClick={() => setShowCommunityEmojiPicker(!showCommunityEmojiPicker)}
-                      className={`w-9 h-9 rounded-full neu-raised flex items-center justify-center transition cursor-pointer shrink-0 ${
-                        showCommunityEmojiPicker
-                          ? 'text-[#5B9DFF] ring-2 ring-[#5B9DFF]/40'
-                          : 'text-slate-500 hover:text-[#5B9DFF]'
-                      }`}
-                      title="Emoji"
-                    >
-                      <Smile className="w-4 h-4" />
-                    </button>
+                    {/* 2. Main "Send chat" Input Pill */}
+                    <div className="flex-1 relative flex items-center min-w-0">
+                      <div className="w-full flex items-center bg-white rounded-full border border-slate-700/90 sm:border-[1.8px] sm:border-slate-800 px-3.5 sm:px-4 py-1.5 sm:py-2 transition-all shadow-2xs focus-within:border-slate-950 focus-within:shadow-xs">
+                        <input
+                          type="text"
+                          disabled={isMuted}
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          placeholder={
+                            isMuted
+                              ? 'Muted by community head...'
+                              : 'Send chat'
+                          }
+                          className="flex-1 bg-transparent text-sm sm:text-base text-slate-900 placeholder:text-slate-400 focus:outline-none min-w-0 font-normal sm:font-medium caret-[#FF2A6D] pr-2 disabled:opacity-50"
+                        />
 
-                    {/* Rounded Pill-Shaped Input Field with Inline Microphone Icon on Right End */}
-                    <div className="flex-1 neu-inset rounded-full px-3.5 py-1.5 flex items-center gap-2 bg-slate-50 border border-slate-200/60 focus-within:bg-white focus-within:border-[#5B9DFF]/60 transition min-w-0">
-                      <input
-                        type="text"
-                        disabled={isMuted}
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        placeholder={
-                          isMuted
-                            ? 'Muted by community head...'
-                            : 'Send chat'
-                        }
-                        className="flex-1 bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none min-w-0 font-medium disabled:opacity-50"
-                      />
-                      {/* Inline Microphone Button on the Right End */}
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.9 }}
-                        onClick={handleStartVoiceRecord}
-                        disabled={isMuted}
-                        className="text-slate-400 hover:text-[#5B9DFF] p-1 rounded-full transition cursor-pointer shrink-0 disabled:opacity-30"
-                        title="Hold or tap to record voice message"
-                      >
-                        <Mic className="w-4 h-4" />
-                      </motion.button>
+                        {/* Inside Pill: Voice Waveform / Send Action */}
+                        {inputText.trim() || attachedMedia ? (
+                          <button
+                            type="submit"
+                            disabled={isMuted}
+                            className="shrink-0 p-1.5 rounded-full bg-[#5B9DFF] hover:bg-blue-600 text-white transition-all shadow-xs active:scale-90 cursor-pointer disabled:opacity-50"
+                            title="Send Chat"
+                          >
+                            <Send className="w-3.5 h-3.5 ml-0.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isMuted}
+                            onClick={handleStartVoiceRecord}
+                            className="shrink-0 p-1 text-slate-800 hover:text-black active:scale-90 transition-transform cursor-pointer disabled:opacity-40"
+                            title="Record Voice Note"
+                          >
+                            <VoiceWaveformIcon className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-slate-900" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Circular Camera Button on Right Side */}
-                    <motion.button
+                    {/* 3. Emoji Smile Icon */}
+                    <button
                       type="button"
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => cameraInputRef.current?.click()}
                       disabled={isMuted}
-                      className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-500 hover:text-[#5B9DFF] transition cursor-pointer shrink-0 disabled:opacity-30"
-                      title="Take Photo with Camera"
+                      onClick={() => setShowCommunityEmojiPicker(!showCommunityEmojiPicker)}
+                      className="p-1 sm:p-1.5 text-slate-900 hover:text-black shrink-0 hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                      title="Emojis"
                     >
-                      <Camera className="w-4 h-4" />
-                    </motion.button>
+                      <Smile className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2]" />
+                    </button>
 
-                    {/* Send Button */}
-                    <motion.button
-                      type="submit"
-                      whileTap={{ scale: 0.9 }}
-                      disabled={isMuted || (!inputText.trim() && !attachedMedia)}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
-                        inputText.trim() || attachedMedia
-                          ? 'neu-active-blue text-white shadow-md'
-                          : 'neu-inset text-slate-300 cursor-not-allowed opacity-50'
-                      }`}
-                      title="Send"
+                    {/* 4. Gallery Photo Cards Icon */}
+                    <button
+                      type="button"
+                      disabled={isMuted}
+                      onClick={() => photoInputRef.current?.click()}
+                      className="p-1 sm:p-1.5 text-slate-900 hover:text-black shrink-0 hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
+                      title="Gallery Photos"
                     >
-                      <Send className="w-4 h-4 -translate-x-0.5 translate-y-0.5" />
-                    </motion.button>
+                      <GalleryCardsIcon className="w-6 h-6 sm:w-7 sm:h-7 text-slate-900" />
+                    </button>
                   </form>
                 </div>
               )}

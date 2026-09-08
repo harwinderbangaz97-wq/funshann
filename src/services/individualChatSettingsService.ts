@@ -1,5 +1,15 @@
 export type AutoDeleteDuration = 'seen' | '48h' | '1week' | 'none';
 export type MuteDuration = 'off' | '1h' | '8h' | '24h' | 'permanent';
+export type MediaVisibilitySetting = 'default' | 'yes' | 'no';
+
+export interface ChatWallpaperSettings {
+  wallpaperId: string;
+  customUrl?: string;
+  dimming: number; // 0 to 80 percent
+  blur: number; // 0 to 12 px
+  applyToAll: boolean;
+  doodleOverlay?: boolean;
+}
 
 export interface UserChatSettings {
   autoDelete: AutoDeleteDuration;
@@ -7,9 +17,37 @@ export interface UserChatSettings {
   muteDuration?: MuteDuration;
   muteUntil?: number | null;
   soundEnabled: boolean;
+  wallpaper?: ChatWallpaperSettings;
+  mediaVisibility?: MediaVisibilitySetting;
 }
 
 const STORAGE_KEY = 'funshann_user_chat_settings_map';
+const GLOBAL_MEDIA_VISIBILITY_KEY = 'funshann_global_media_visibility';
+
+export const getGlobalMediaVisibility = (): boolean => {
+  try {
+    const raw = localStorage.getItem(GLOBAL_MEDIA_VISIBILITY_KEY);
+    if (raw !== null) {
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return true; // Default global is true (Yes)
+};
+
+export const setGlobalMediaVisibility = (enabled: boolean): void => {
+  try {
+    localStorage.setItem(GLOBAL_MEDIA_VISIBILITY_KEY, JSON.stringify(enabled));
+  } catch {}
+};
+
+export const isMediaVisibleForUser = (userId?: string): boolean => {
+  if (!userId) return getGlobalMediaVisibility();
+  const settings = getIndividualChatSettings(userId);
+  const val = settings.mediaVisibility || 'default';
+  if (val === 'yes') return true;
+  if (val === 'no') return false;
+  return getGlobalMediaVisibility();
+};
 
 export const getIndividualChatSettings = (userId: string): UserChatSettings => {
   try {
@@ -37,6 +75,8 @@ export const getIndividualChatSettings = (userId: string): UserChatSettings => {
           muteDuration,
           muteUntil,
           soundEnabled: item.soundEnabled !== undefined ? item.soundEnabled : true,
+          wallpaper: item.wallpaper,
+          mediaVisibility: item.mediaVisibility || 'default',
         };
       }
     }
@@ -49,6 +89,7 @@ export const getIndividualChatSettings = (userId: string): UserChatSettings => {
     muteDuration: 'off',
     muteUntil: null,
     soundEnabled: true,
+    mediaVisibility: 'default',
   };
 };
 
@@ -65,11 +106,14 @@ export const saveIndividualChatSettings = (
       muteDuration: 'off',
       muteUntil: null,
       soundEnabled: true,
+      mediaVisibility: 'default',
     };
 
     let isMuted = settings.isMuted !== undefined ? settings.isMuted : current.isMuted;
     let muteDuration = settings.muteDuration !== undefined ? settings.muteDuration : current.muteDuration;
     let muteUntil = settings.muteUntil !== undefined ? settings.muteUntil : current.muteUntil;
+    let wallpaper = settings.wallpaper !== undefined ? settings.wallpaper : current.wallpaper;
+    let mediaVisibility = settings.mediaVisibility !== undefined ? settings.mediaVisibility : (current.mediaVisibility || 'default');
 
     if (settings.muteDuration !== undefined) {
       muteDuration = settings.muteDuration;

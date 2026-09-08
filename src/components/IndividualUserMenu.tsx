@@ -16,16 +16,23 @@ import {
   VolumeX,
   Clock,
   Eye,
+  EyeOff,
   AlertTriangle,
   Sparkles,
   UserX,
   Flag,
   ShieldAlert,
+  Palette,
+  Image as ImageIcon,
+  FolderLock,
+  FolderHeart,
+  ShieldCheck,
 } from 'lucide-react';
 import { User } from '../types';
 import {
   AutoDeleteDuration,
   MuteDuration,
+  MediaVisibilitySetting,
   UserChatSettings,
   getIndividualChatSettings,
   saveIndividualChatSettings,
@@ -44,9 +51,10 @@ interface IndividualUserMenuProps {
   onToggleLockChat?: (userId: string) => void;
   onShowToast?: (message: string) => void;
   onUserBlocked?: (userId: string) => void;
+  onOpenWallpaper?: () => void;
 }
 
-type MenuScreen = 'main' | 'delete_chat' | 'notification';
+type MenuScreen = 'main' | 'delete_chat' | 'notification' | 'media_visibility';
 
 export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
   isOpen,
@@ -59,6 +67,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
   onToggleLockChat,
   onShowToast,
   onUserBlocked,
+  onOpenWallpaper,
 }) => {
   const [currentScreen, setCurrentScreen] = useState<MenuScreen>('main');
   const [chatSettings, setChatSettings] = useState<UserChatSettings>(() =>
@@ -99,6 +108,20 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
       onUserBlocked(user.id);
     }
     onClose();
+  };
+
+  const handleUpdateMediaVisibility = (visibility: MediaVisibilitySetting) => {
+    const updated = saveIndividualChatSettings(user.id, { mediaVisibility: visibility });
+    setChatSettings(updated);
+    if (onShowToast) {
+      if (visibility === 'yes') {
+        onShowToast(`Media from ${user.name} will be saved to your device gallery`);
+      } else if (visibility === 'no') {
+        onShowToast(`Media from ${user.name} hidden from device gallery (kept in chat)`);
+      } else {
+        onShowToast(`Media visibility reset to default for ${user.name}`);
+      }
+    }
   };
 
   const handleUpdateAutoDelete = (mode: AutoDeleteDuration) => {
@@ -207,6 +230,8 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                     ? user.name
                     : currentScreen === 'delete_chat'
                     ? 'Delete Chat'
+                    : currentScreen === 'media_visibility'
+                    ? 'Media Visibility'
                     : 'Notification'}
                 </h3>
                 <p className="text-[11.5px] text-slate-400 font-medium truncate">
@@ -292,6 +317,55 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                       <span>Locked</span>
                     </span>
                   )}
+                </button>
+
+                {/* 3.5 Chat Wallpaper */}
+                {onOpenWallpaper && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenWallpaper();
+                    }}
+                    className="w-full h-12 px-3.5 rounded-[18px] text-left text-[14px] font-bold text-slate-800 hover:bg-blue-50/70 hover:text-[#5B9DFF] flex items-center justify-between transition cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8.5 h-8.5 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF]">
+                        <Palette className="w-4.5 h-4.5" />
+                      </div>
+                      <span>Chat Wallpaper</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-slate-400">
+                      <span className="text-[11.5px] font-semibold text-[#5B9DFF] bg-blue-50 px-2.5 py-0.5 rounded-full">
+                        Customize
+                      </span>
+                      <ChevronRight className="w-4.5 h-4.5 text-slate-400" />
+                    </div>
+                  </button>
+                )}
+
+                {/* 3.6 Media Visibility */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('media_visibility')}
+                  className="w-full h-12 px-3.5 rounded-[18px] text-left text-[14px] font-bold text-slate-800 hover:bg-blue-50/70 hover:text-[#5B9DFF] flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8.5 h-8.5 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF]">
+                      <ImageIcon className="w-4.5 h-4.5" />
+                    </div>
+                    <span>Media Visibility</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <span className="text-[12px] font-medium text-slate-500">
+                      {chatSettings.mediaVisibility === 'yes'
+                        ? 'Yes'
+                        : chatSettings.mediaVisibility === 'no'
+                        ? 'No'
+                        : 'Default (Yes)'}
+                    </span>
+                    <ChevronRight className="w-4.5 h-4.5 text-slate-400" />
+                  </div>
                 </button>
 
                 {/* 4. Delete Chat > */}
@@ -584,6 +658,89 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                     <div className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transform transition-transform ${chatSettings.soundEnabled ? 'translate-x-4.5' : 'translate-x-0'}`} />
                   </div>
                 </button>
+              </div>
+            )}
+
+            {/* MEDIA VISIBILITY SUBMENU */}
+            {currentScreen === 'media_visibility' && (
+              <div className="space-y-3">
+                <div className="px-1 py-1">
+                  <p className="text-[13px] text-slate-700 font-medium leading-relaxed">
+                    Show newly downloaded media from this chat in your device's gallery?
+                  </p>
+                </div>
+
+                {/* Media Visibility Options */}
+                <div className="space-y-2">
+                  {[
+                    {
+                      id: 'default',
+                      label: 'Default (Yes)',
+                      desc: 'Follow global app preference (Media will be saved to your device gallery)',
+                      icon: FolderHeart,
+                    },
+                    {
+                      id: 'yes',
+                      label: 'Yes',
+                      desc: 'Always save photos and videos received in this chat to your camera roll/gallery',
+                      icon: ShieldCheck,
+                    },
+                    {
+                      id: 'no',
+                      label: 'No',
+                      desc: 'Hide received media from gallery. Photos stay private inside this chat vault',
+                      icon: FolderLock,
+                    },
+                  ].map((opt) => {
+                    const isSelected = (chatSettings.mediaVisibility || 'default') === opt.id;
+                    const IconComp = opt.icon;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleUpdateMediaVisibility(opt.id as MediaVisibilitySetting)}
+                        className={`w-full p-3.5 rounded-[20px] text-left transition-all flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'neu-inset border border-[#5B9DFF]/60 bg-blue-50/40'
+                            : 'neu-raised hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                              isSelected
+                                ? 'bg-[#5B9DFF] text-white shadow-xs'
+                                : 'neu-inset text-slate-600'
+                            }`}
+                          >
+                            <IconComp className="w-4.5 h-4.5" />
+                          </div>
+                          <div className="pr-1">
+                            <h4 className="text-[14px] font-bold text-slate-800">{opt.label}</h4>
+                            <p className="text-[11px] text-slate-500 leading-snug mt-0.5">
+                              {opt.desc}
+                            </p>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="w-6 h-6 rounded-full bg-[#5B9DFF] text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Visual Privacy Note Banner */}
+                <div className="p-3 rounded-[18px] bg-slate-50 border border-slate-200/70 flex items-start gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-[#5B9DFF] shrink-0 mt-0.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Setting media visibility to <span className="font-semibold text-slate-700">"No"</span> prevents newly received photos and videos from being indexed into the system photos gallery or shared albums on your phone.
+                  </p>
+                </div>
               </div>
             )}
           </div>

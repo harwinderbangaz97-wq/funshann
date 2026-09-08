@@ -124,6 +124,8 @@ export const addChatMessageToFirestore = async (
     receiverId: string;
     text?: string;
     imageUrl?: string;
+    images?: string[];
+    mediaUrls?: string[];
     voiceNote?: VoiceNoteData;
     isForwarded?: boolean;
     forwardedFrom?: string;
@@ -148,6 +150,18 @@ export const addChatMessageToFirestore = async (
 
   if (messageData.imageUrl) {
     messageObj.imageUrl = messageData.imageUrl;
+  }
+  if (Array.isArray(messageData.images) && messageData.images.length > 0) {
+    messageObj.images = messageData.images;
+    if (!messageObj.imageUrl) {
+      messageObj.imageUrl = messageData.images[0];
+    }
+  }
+  if (Array.isArray(messageData.mediaUrls) && messageData.mediaUrls.length > 0) {
+    messageObj.mediaUrls = messageData.mediaUrls;
+    if (!messageObj.imageUrl) {
+      messageObj.imageUrl = messageData.mediaUrls[0];
+    }
   }
   if (messageData.voiceNote) {
     let finalVoiceNote = { ...messageData.voiceNote };
@@ -218,6 +232,8 @@ export const sendChatMessage = async (
   payload: {
     text?: string;
     imageUrl?: string;
+    images?: string[];
+    mediaUrls?: string[];
     voiceNote?: VoiceNoteData;
     isForwarded?: boolean;
     forwardedFrom?: string;

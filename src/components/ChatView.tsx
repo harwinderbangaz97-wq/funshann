@@ -45,7 +45,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { User, ChatThread, Message, VoiceNoteData, MessagePrivacyMode, MessageReportReason } from '../types';
 import { ShareCommunityModal } from './ShareCommunityModal';
 import { VoiceMessageBubble } from './VoiceMessageBubble';
-import { ChatWallpaperModal, ChatWallpaperSettings } from './ChatWallpaperModal';
+import { ChatWallpaperModal, ChatWallpaperSettings, computeChatWallpaperStyle } from './ChatWallpaperModal';
 import { DeleteMessageConfirmModal } from './DeleteMessageConfirmModal';
 import { IndividualUserMenu } from './IndividualUserMenu';
 import { UniversalReportModal } from './UniversalReportModal';
@@ -53,6 +53,7 @@ import { CreateGroupModal } from './CreateGroupModal';
 import { GroupInfoModal } from './GroupInfoModal';
 import { CommunityChannelModal } from './CommunityChannelModal';
 import { EmojiPickerPopup } from './EmojiPickerPopup';
+import { MediaGridMessage } from './MediaGridMessage';
 import { CHAT_WALLPAPERS } from '../data/wallpapers';
 import { useNavigation } from '../context/NavigationContext';
 import { usePermissionAndMedia } from '../context/PermissionAndMediaContext';
@@ -87,6 +88,62 @@ import { parseTimestampToMs, format12HourTime, formatRelativeTime } from '../ser
 
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉'];
 
+export function formatChatDateDivider(timestampMs?: number): string {
+  if (!timestampMs) return 'Today';
+  const msgDate = new Date(timestampMs);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (msgDate.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+  if (msgDate.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  }
+  return msgDate.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: msgDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+  });
+}
+
+export const VoiceWaveformIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5 text-slate-900' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <rect x="2.5" y="7" width="2.5" height="10" rx="1.25" />
+    <rect x="7" y="4" width="2.5" height="16" rx="1.25" />
+    <rect x="11.5" y="1" width="2.5" height="22" rx="1.25" />
+    <rect x="16" y="4" width="2.5" height="16" rx="1.25" />
+    <rect x="20.5" y="7" width="2.5" height="10" rx="1.25" />
+  </svg>
+);
+
+export const GalleryCardsIcon: React.FC<{ className?: string }> = ({ className = 'w-6 h-6 text-slate-900' }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    {/* Back tilted card */}
+    <rect x="2" y="3" width="13" height="16" rx="3" transform="rotate(-9 8.5 11)" strokeWidth="1.8" />
+    {/* Front straight card */}
+    <rect x="7" y="3.5" width="14" height="17" rx="3.5" strokeWidth="2" fill="white" />
+    {/* Sun/circle */}
+    <circle cx="15.5" cy="8" r="1.3" strokeWidth="2" />
+    {/* Landscape curve */}
+    <path d="M7.5 17l3.5-4a1 1 0 0 1 1.5 0l2.5 2.5 1.5-1.5a1 1 0 0 1 1.5 0l2.5 2.5" strokeWidth="1.8" />
+  </svg>
+);
+
 export interface Community {
   id: string;
   name: string;
@@ -117,7 +174,8 @@ interface ChatViewProps {
     privacyMode?: MessagePrivacyMode,
     isForwarded?: boolean,
     forwardedFrom?: string,
-    skipFirestoreWrite?: boolean
+    skipFirestoreWrite?: boolean,
+    images?: string[]
   ) => void;
   onDeleteMessage?: (threadId: string, messageId: string) => void;
   onReportMessage?: (
@@ -203,6 +261,67 @@ const MessageBubbleItem: React.FC<{
     onOpenContextMenu(msg);
   };
 
+  // Determine if this message contains media
+  const mediaList = useMemo(() => {
+    const list: string[] = [];
+    if (Array.isArray(msg.images)) {
+      for (const img of msg.images) {
+        if (typeof img === 'string' && img.trim().length > 0) {
+          list.push(img.trim());
+        }
+      }
+    }
+    if (list.length === 0 && Array.isArray(msg.mediaUrls)) {
+      for (const img of msg.mediaUrls) {
+        if (typeof img === 'string' && img.trim().length > 0) {
+          list.push(img.trim());
+        }
+      }
+    }
+    if (list.length === 0 && typeof msg.imageUrl === 'string' && msg.imageUrl.trim().length > 0) {
+      list.push(msg.imageUrl.trim());
+    }
+    return list;
+  }, [msg.images, msg.mediaUrls, msg.imageUrl]);
+
+  // If message has media and NO voice note, render WhatsApp Media Grid
+  if (mediaList.length > 0 && !msg.voiceNote) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.96, y: 6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.2 } }}
+        className="w-full select-none"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={handleContextMenu}
+      >
+        <MediaGridMessage
+          images={mediaList}
+          caption={msg.text}
+          timestamp={msg.timestamp || format12HourTime(msg.createdAt)}
+          isMyMessage={isMyMessage}
+          isRead={msg.isRead}
+          isDelivered={msg.isDelivered !== false}
+          isForwarded={msg.isForwarded}
+          forwardedFrom={msg.forwardedFrom}
+          reactions={msg.reactions}
+          onForward={() => {
+            if (onForward) onForward(msg);
+            else onOpenContextMenu(msg);
+          }}
+          onImageClick={onImageClick}
+          onReactionClick={(emoji) => {
+            if (onToggleReaction) onToggleReaction(msg.id, emoji);
+          }}
+          onOpenContextMenu={() => onOpenContextMenu(msg)}
+        />
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       layout
@@ -216,42 +335,44 @@ const MessageBubbleItem: React.FC<{
       onContextMenu={handleContextMenu}
     >
       <div
-        className={`relative max-w-[85%] rounded-[22px] p-3 text-xs leading-relaxed transition-all cursor-pointer ${
+        className={`relative max-w-[80%] sm:max-w-[70%] rounded-[16px] px-2.5 py-1.5 text-[13px] leading-snug transition-all cursor-pointer shadow-2xs ${
           isMyMessage
-            ? 'neu-active-blue text-white rounded-br-sm shadow-md'
-            : 'bg-white/95 backdrop-blur-md text-slate-800 rounded-bl-sm border border-slate-200/80 shadow-xs'
+            ? 'neu-active-blue text-white rounded-br-[3px] shadow-sm'
+            : 'bg-white/95 backdrop-blur-md text-slate-800 rounded-bl-[3px] border border-slate-200/80 shadow-2xs'
         }`}
       >
         {!isMyMessage && msg.senderName && (
-          <span className="text-[10px] font-bold text-blue-600 mb-1 block">
+          <span className="text-[10.5px] font-bold text-[#5B9DFF] mb-0.5 block">
             {msg.senderName}
           </span>
         )}
         {msg.isForwarded && (
-          <div className="flex items-center gap-1 mb-1.5 opacity-80 text-[10px] font-medium italic select-none">
-            <Forward className="w-3 h-3" />
+          <div className={`flex items-center gap-1 mb-0.5 text-[10.5px] font-medium italic select-none ${isMyMessage ? 'text-blue-100' : 'text-slate-500'}`}>
+            <Forward className={`w-3 h-3 ${isMyMessage ? 'text-blue-200' : 'text-slate-400'}`} />
             <span>Forwarded{msg.forwardedFrom ? ` from ${msg.forwardedFrom}` : ''}</span>
           </div>
         )}
         {msg.voiceNote && (
           <VoiceMessageBubble voiceNote={msg.voiceNote} isMyMessage={isMyMessage} />
         )}
-        {msg.imageUrl && (
-          <div
-            className="mb-2 rounded-[14px] overflow-hidden cursor-pointer neu-inset"
-            onClick={(e) => {
-              e.stopPropagation();
-              onImageClick(msg.imageUrl || '');
-            }}
-          >
-            <img
-              src={msg.imageUrl}
-              alt="Sent attachment"
-              className="w-full max-h-60 object-cover hover:scale-102 transition-transform duration-300"
-            />
-          </div>
+        {msg.text && (
+          <p className="font-normal whitespace-pre-wrap break-words">{msg.text}</p>
         )}
-        {msg.text && <p className="font-normal whitespace-pre-wrap">{msg.text}</p>}
+
+        <div className={`flex items-center justify-end gap-1 mt-0.5 text-[9.5px] font-medium select-none ${isMyMessage ? 'text-blue-100/90' : 'text-slate-400'}`}>
+          <span>{format12HourTime(msg.createdAt || msg.timestamp)}</span>
+          {isMyMessage && (
+            <span title={msg.isRead ? 'Read' : (msg.isDelivered ? 'Delivered' : 'Sent')}>
+              {msg.isRead ? (
+                <CheckCheck className="w-3 h-3 text-white" />
+              ) : msg.isDelivered ? (
+                <CheckCheck className="w-3 h-3 text-blue-200" />
+              ) : (
+                <Check className="w-3 h-3 text-blue-200" />
+              )}
+            </span>
+          )}
+        </div>
       </div>
 
       {msg.reactions && msg.reactions.length > 0 && (
@@ -259,8 +380,8 @@ const MessageBubbleItem: React.FC<{
           layout
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          className={`flex flex-wrap items-center gap-1 mt-1 z-10 select-none ${
-            isMyMessage ? 'justify-end pr-1' : 'justify-start pl-1'
+          className={`flex flex-wrap items-center gap-1 -mt-2 z-10 select-none ${
+            isMyMessage ? 'justify-end pr-2' : 'justify-start pl-2'
           }`}
         >
           {msg.reactions.map((r) => {
@@ -269,7 +390,7 @@ const MessageBubbleItem: React.FC<{
               <motion.button
                 key={r.emoji}
                 type="button"
-                whileTap={{ scale: 0.82 }}
+                whileTap={{ scale: 0.85 }}
                 whileHover={{ scale: 1.1 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -278,15 +399,13 @@ const MessageBubbleItem: React.FC<{
                     onToggleReaction(msg.id, r.emoji);
                   }
                 }}
-                className={`group/r flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shadow-xs transition cursor-pointer backdrop-blur-md ${
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shadow-xs transition cursor-pointer backdrop-blur-md ${
                   hasUserReacted
-                    ? 'bg-blue-50/95 border border-[#5B9DFF] text-[#1d4ed8] shadow-sm ring-1 ring-[#5B9DFF]/30 font-bold'
+                    ? 'bg-blue-50 border border-[#5B9DFF] text-[#1d4ed8] shadow-xs'
                     : 'bg-white/95 border border-slate-200/90 text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                <span className="text-sm leading-none transition-transform group-hover/r:scale-120">
-                  {r.emoji}
-                </span>
+                <span className="text-sm leading-none">{r.emoji}</span>
                 {r.count > 1 && (
                   <span className="text-[10px] font-bold opacity-90">{r.count}</span>
                 )}
@@ -295,42 +414,6 @@ const MessageBubbleItem: React.FC<{
           })}
         </motion.div>
       )}
-
-      <div className="flex items-center gap-1.5 mt-1 px-1 text-[10px] text-slate-500 font-semibold drop-shadow-xs">
-        <span className="bg-white/70 backdrop-blur-xs px-1.5 py-0.2 rounded-md">{format12HourTime(msg.createdAt || msg.timestamp)}</span>
-        {isMyMessage && (
-          <span title={msg.isRead ? 'Seen' : (msg.isDelivered ? 'Delivered' : 'Sent')}>
-            {msg.isRead || msg.isDelivered ? (
-              <CheckCheck
-                className={`w-3 h-3 ${msg.isRead ? 'text-[#5B9DFF]' : 'text-slate-400'}`}
-              />
-            ) : (
-              <Check className="w-3 h-3 text-slate-400" />
-            )}
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onForward) onForward(msg);
-            else onOpenContextMenu(msg);
-          }}
-          className="opacity-60 hover:opacity-100 p-0.5 text-slate-400 hover:text-blue-600 transition cursor-pointer"
-        >
-          <Forward className="w-3 h-3" />
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenContextMenu(msg);
-          }}
-          className="opacity-60 hover:opacity-100 p-0.5 text-slate-400 hover:text-slate-700 transition cursor-pointer"
-        >
-          <MoreVertical className="w-3 h-3" />
-        </button>
-      </div>
     </motion.div>
   );
 };
@@ -431,14 +514,27 @@ export const ChatView: React.FC<ChatViewProps> = ({
   } = useNavigation();
   const { requestPermission, takePhoto, chooseFromGallery } = usePermissionAndMedia();
 
-  const handlePickFromGallery = async () => {
-    const res = await chooseFromGallery({
-      accept: 'image/*',
-      featureName: 'Chat Photos',
-    });
-    if (res?.url) {
-      setAttachedImage(res.url);
+  const galleryFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePickFromGallery = () => {
+    if (galleryFileInputRef.current) {
+      galleryFileInputRef.current.click();
     }
+  };
+
+  const handleGalleryFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          setAttachedImages((prev) => [...prev, reader.result as string]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
   };
 
   const handleTakePhoto = async () => {
@@ -447,12 +543,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
       featureName: 'Chat Photos',
     });
     if (res?.url) {
-      setAttachedImage(res.url);
+      setAttachedImages((prev) => [...prev, res.url]);
     }
   };
 
   const [inputText, setInputText] = useState('');
-  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const showImagePicker = navState.chatAttachmentOpen;
   const setShowImagePicker = setChatAttachmentOpen;
   const lightboxImage = navState.chatLightboxUrl;
@@ -816,7 +912,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [chatId, currentUserId]);
 
   // Handle local user input changes and track typing status in Firestore
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInputText(val);
 
@@ -842,11 +938,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const handleSendMessage = () => {
-    if (inputText.trim() || attachedImage) {
+    if (inputText.trim() || attachedImages.length > 0) {
       clearLocalTypingStatus();
-      onSendMessage(recipientId, inputText.trim(), attachedImage || undefined);
+      const imgs = [...attachedImages];
+      const primaryImg = imgs.length > 0 ? imgs[0] : undefined;
+      onSendMessage(
+        recipientId,
+        inputText.trim(),
+        primaryImg,
+        undefined,
+        'normal',
+        false,
+        undefined,
+        false,
+        imgs.length > 0 ? imgs : undefined
+      );
       setInputText('');
-      setAttachedImage(null);
+      setAttachedImages([]);
     }
   };
 
@@ -876,6 +984,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const msgs: Message[] = snapshot.docs.map((docSnap) => {
         const data = docSnap.data({ serverTimestamps: 'estimate' });
         const createdAtMs = parseTimestampToMs(data.createdAt || data.timestamp || docSnap.id);
+        const images = Array.isArray(data.images)
+          ? data.images
+          : (Array.isArray(data.mediaUrls)
+            ? data.mediaUrls
+            : (data.imageUrl ? [data.imageUrl] : []));
+
         return {
           id: docSnap.id,
           text: typeof data.text === 'string' ? data.text : '',
@@ -883,11 +997,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
           receiverId: data.receiverId || '',
           createdAt: createdAtMs,
           timestamp: format12HourTime(createdAtMs),
-          imageUrl: data.imageUrl,
+          imageUrl: data.imageUrl || (images.length > 0 ? images[0] : undefined),
+          images: images.length > 0 ? images : undefined,
+          mediaUrls: images.length > 0 ? images : undefined,
           voiceNote: data.voiceNote,
           isRead: Boolean(data.isRead),
           reactions: Array.isArray(data.reactions) ? data.reactions : [],
           isDelivered: !snapshot.metadata.hasPendingWrites,
+          isForwarded: Boolean(data.isForwarded),
+          forwardedFrom: data.forwardedFrom,
         } as Message;
       }).reverse(); // Ascending chronological order
 
@@ -1104,68 +1222,71 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   if (activeChatUserId && activeThread) {
-    const threadWallpaper = globalWallpaper;
-    const selectedWallpaper = CHAT_WALLPAPERS.find(w => w.id === threadWallpaper.wallpaperId);
-    const wallStyles: React.CSSProperties = {
-      backgroundImage: threadWallpaper.wallpaperId !== 'clean-default' && selectedWallpaper?.value ? (selectedWallpaper.type === 'image' ? `url(${selectedWallpaper.value})` : selectedWallpaper.value) : 'none',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-    };
+    const chatSettings = recipientId ? getIndividualChatSettings(recipientId) : null;
+    const threadWallpaper: ChatWallpaperSettings = chatSettings?.wallpaper || globalWallpaper;
+    const wallStyles = computeChatWallpaperStyle(threadWallpaper);
 
     return (
       <div className="h-[100dvh] flex flex-col min-h-0 bg-slate-50 relative overflow-hidden animate-in fade-in slide-in-from-right-4 duration-400">
-        <div className="flex items-center justify-between p-3 sm:p-4 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 z-30 shadow-sm flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        {/* Hidden file input for multi-photo attachment */}
+        <input
+          type="file"
+          ref={galleryFileInputRef}
+          multiple
+          accept="image/*"
+          className="hidden"
+          onChange={handleGalleryFileChange}
+        />
+
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-2.5 bg-white/85 backdrop-blur-xl border-b border-slate-200/70 z-30 shadow-xs flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <button
               onClick={onBackToList}
-              className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 cursor-pointer"
+              className="p-1.5 -ml-1 rounded-full hover:bg-slate-100 transition-colors text-slate-700 cursor-pointer"
+              title="Back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div
-              className="flex items-center gap-3 cursor-pointer group min-w-0"
+              className="flex items-center gap-2.5 cursor-pointer group min-w-0"
               onClick={() => { if (resolvedParticipant && onOpenUserProfile) onOpenUserProfile(resolvedParticipant); }}
             >
               <div className="relative flex-shrink-0">
                 <img
                   src={activeThread.isGroup ? (activeThread.groupAvatar || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80') : (resolvedParticipant?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')}
                   alt={activeThread.isGroup ? activeThread.groupName : (resolvedParticipant?.name || 'Contact')}
-                  className="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm group-hover:scale-105 transition-transform"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover ring-1 ring-slate-200 neu-raised group-hover:scale-103 transition-transform"
                 />
                 {!activeThread.isGroup && (
-                  <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full shadow-sm ${resolvedParticipant?.isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                  <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${resolvedParticipant?.isOnline ? 'bg-[#5B9DFF]' : 'bg-slate-300'}`} />
                 )}
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
+                <h3 className="text-[14px] sm:text-[15px] font-bold text-slate-900 truncate leading-tight">
                   {activeThread.isGroup ? activeThread.groupName : (resolvedParticipant?.name || 'Contact')}
                 </h3>
                 {!activeThread.isGroup ? (
                   activeThread.isTyping ? (
-                    <p className="text-[10px] font-semibold text-blue-600 animate-pulse flex items-center gap-1">
-                      <span>typing</span>
-                      <span className="inline-flex gap-0.5">
-                        <span className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1 h-1 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </span>
+                    <p className="text-[11px] font-semibold text-[#5B9DFF] animate-pulse flex items-center gap-1">
+                      <span>typing...</span>
                     </p>
                   ) : (
-                    <p className={`text-[10px] font-medium ${resolvedParticipant?.isOnline ? 'text-emerald-600 animate-pulse' : 'text-slate-500'}`}>
+                    <p className={`text-[11px] font-medium leading-none mt-0.5 ${resolvedParticipant?.isOnline ? 'text-[#5B9DFF]' : 'text-slate-400'}`}>
                       {resolvedParticipant?.isOnline
-                        ? 'Online'
+                        ? 'online'
                         : resolvedParticipant?.lastActive
-                        ? `Offline • Last active ${formatRelativeTime(resolvedParticipant.lastActive)}`
-                        : 'Offline'}
+                        ? `last seen ${formatRelativeTime(resolvedParticipant.lastActive)}`
+                        : 'offline'}
                     </p>
                   )
                 ) : (
                   activeThread.isTyping ? (
-                    <p className="text-[10px] font-semibold text-blue-600 animate-pulse">
+                    <p className="text-[11px] font-semibold text-[#5B9DFF] animate-pulse">
                       {typingParticipant ? `${typingParticipant.name.split(' ')[0]} is typing...` : 'typing...'}
                     </p>
                   ) : (
-                    <p className="text-[10px] font-medium text-slate-500">
+                    <p className="text-[11px] font-medium text-slate-400">
                       {activeThread.participantIds?.length || 0} members
                     </p>
                   )
@@ -1173,26 +1294,41 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <button onClick={() => setShowThreadMenu(true)} className="p-2 rounded-full hover:bg-slate-100 transition text-slate-500 cursor-pointer"><MoreVertical className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowThreadMenu(true)}
+              className="p-2 rounded-full neu-raised hover:bg-slate-50 transition text-slate-600 cursor-pointer"
+              title="More options"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
+        {/* Chat Messages Canvas with Wallpaper Support */}
         <div
           ref={chatContainerRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 relative no-scrollbar"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 relative no-scrollbar"
           style={{ ...wallStyles, WebkitOverflowScrolling: 'touch' }}
         >
-          <div className="absolute inset-0 z-0" style={{ backgroundColor: `rgba(241, 245, 249, ${threadWallpaper.dimming / 100})`, backdropFilter: `blur(${threadWallpaper.blur}px)` }} />
-          <div className="relative z-10 flex flex-col gap-4 pb-2">
+          {/* Wallpaper Dimming & Blur Overlay */}
+          <div
+            className="absolute inset-0 z-0 pointer-events-none"
+            style={{
+              backgroundColor: `rgba(0, 0, 0, ${(threadWallpaper.dimming || 0) / 100})`,
+              backdropFilter: threadWallpaper.blur ? `blur(${threadWallpaper.blur}px)` : undefined,
+            }}
+          />
+
+          <div className="relative z-10 flex flex-col gap-2 pb-2">
             {/* Pull to Refresh Indicator & History Loader */}
             <div className="flex flex-col items-center justify-center -mt-1 mb-1">
               {(isPulling || isLoadingOlder) && (
                 <div
-                  className="flex items-center justify-center gap-2 py-2 px-4 rounded-full bg-white/95 backdrop-blur-md shadow-md border border-slate-200/80 text-xs font-semibold text-slate-700 transition-all duration-200 animate-in fade-in"
+                  className="flex items-center justify-center gap-2 py-1.5 px-3 rounded-full bg-white/95 backdrop-blur-md shadow-sm border border-slate-200/80 text-xs font-semibold text-slate-700 transition-all duration-200"
                   style={{
                     transform: `translateY(${Math.min(pullDistance, 35)}px)`,
                     opacity: Math.max(0.6, Math.min(1, (pullDistance + 10) / 40)),
@@ -1200,18 +1336,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 >
                   {isLoadingOlder ? (
                     <>
-                      <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 text-[#5B9DFF] animate-spin" />
                       <span>Loading older messages...</span>
                     </>
                   ) : pullDistance >= 45 ? (
                     <>
-                      <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+                      <RefreshCw className="w-3.5 h-3.5 text-[#5B9DFF] animate-spin" />
                       <span>Release to load older history</span>
                     </>
                   ) : (
                     <>
                       <ArrowDown
-                        className="w-4 h-4 text-slate-400 transition-transform duration-150"
+                        className="w-3.5 h-3.5 text-slate-400 transition-transform duration-150"
                         style={{ transform: `rotate(${Math.min(180, (pullDistance / 45) * 180)}deg)` }}
                       />
                       <span>Pull down to load older messages</span>
@@ -1223,9 +1359,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
               {!isPulling && !isLoadingOlder && hasMoreOlder && messages.length >= 10 && (
                 <button
                   onClick={handleLoadOlderMessages}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white text-slate-600 hover:text-blue-600 border border-slate-200/70 text-[11px] font-semibold shadow-2xs hover:shadow-xs transition-all cursor-pointer group"
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 hover:bg-white text-slate-600 hover:text-[#5B9DFF] border border-slate-200/70 text-[11px] font-semibold shadow-2xs transition-all cursor-pointer group"
                 >
-                  <RefreshCw className="w-3 h-3 text-slate-400 group-hover:text-blue-500 group-hover:rotate-180 transition-all duration-300" />
+                  <RefreshCw className="w-3 h-3 text-slate-400 group-hover:text-[#5B9DFF] group-hover:rotate-180 transition-all duration-300" />
                   <span>Load older messages</span>
                 </button>
               )}
@@ -1238,26 +1374,49 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
 
             {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-50">
-                <div className="w-16 h-16 rounded-3xl bg-white flex items-center justify-center shadow-sm"><Sparkles className="w-8 h-8 text-blue-400" /></div>
-                <div><p className="text-sm font-bold text-slate-800">Start the conversation</p><p className="text-xs text-slate-500">Send a friendly greeting to begin</p></div>
+              <div className="flex flex-col items-center justify-center py-20 text-center space-y-3 opacity-60">
+                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-xs neu-raised">
+                  <Sparkles className="w-7 h-7 text-[#5B9DFF]" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">No messages yet</p>
+                  <p className="text-xs text-slate-500">Send a message to start chatting</p>
+                </div>
               </div>
             )}
-            {messages.map((m) => (
-              <MessageBubbleItem
-                key={m.id}
-                msg={m}
-                isMyMessage={m.senderId === (currentUser.uid || currentUser.id)}
-                activeThreadId={activeThread.id}
-                currentUserId={currentUser.uid || currentUser.id || ''}
-                onOpenContextMenu={setContextMessage}
-                onForward={setForwardTargetMessage}
-                onImageClick={setLightboxImage}
-                onToggleReaction={(messageId, emoji) => {
-                  if (onToggleReaction && activeThread) onToggleReaction(activeThread.id, messageId, emoji);
-                }}
-              />
-            ))}
+
+            {/* Messages with sleek Date Dividers */}
+            {messages.map((m, idx) => {
+              const prevMsg = idx > 0 ? messages[idx - 1] : null;
+              const currentDateDivider = formatChatDateDivider(m.createdAt);
+              const prevDateDivider = prevMsg ? formatChatDateDivider(prevMsg.createdAt) : null;
+              const showDateDivider = !prevMsg || currentDateDivider !== prevDateDivider;
+
+              return (
+                <React.Fragment key={m.id}>
+                  {showDateDivider && (
+                    <div className="flex items-center justify-center my-2">
+                      <span className="px-3 py-1 rounded-full neu-inset text-[11px] font-semibold text-slate-500 select-none uppercase tracking-wider">
+                        {currentDateDivider}
+                      </span>
+                    </div>
+                  )}
+                  <MessageBubbleItem
+                    msg={m}
+                    isMyMessage={m.senderId === (currentUser.uid || currentUser.id)}
+                    activeThreadId={activeThread.id}
+                    currentUserId={currentUser.uid || currentUser.id || ''}
+                    onOpenContextMenu={setContextMessage}
+                    onForward={setForwardTargetMessage}
+                    onImageClick={setLightboxImage}
+                    onToggleReaction={(messageId, emoji) => {
+                      if (onToggleReaction && activeThread) onToggleReaction(activeThread.id, messageId, emoji);
+                    }}
+                  />
+                </React.Fragment>
+              );
+            })}
+
             {activeThread.isTyping && (typingParticipant || resolvedParticipant) && (
               <TypingIndicatorBubble participant={typingParticipant || resolvedParticipant!} />
             )}
@@ -1265,75 +1424,156 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         </div>
 
-        <div className="p-3 bg-white border-t border-slate-200/60 z-30 flex-shrink-0">
+        {/* Input Bar & Multi-Photo Attachment Previews */}
+        <div className="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md border-t border-slate-200/70 z-30 flex-shrink-0">
+          {attachedImages.length > 0 && !isRecordingVoice && (
+            <div className="mb-2 flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1">
+              {attachedImages.map((imgUrl, i) => (
+                <div key={i} className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-sm border border-slate-200 flex-shrink-0 bg-slate-100">
+                  <img src={imgUrl} alt={`Attachment ${i + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setAttachedImages((prev) => prev.filter((_, idx) => idx !== i))}
+                    className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white hover:bg-black transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  <span className="absolute bottom-1 left-1 px-1.5 py-0.2 rounded bg-black/60 text-white text-[9px] font-bold">
+                    {i + 1}
+                  </span>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handlePickFromGallery}
+                className="w-16 h-16 rounded-2xl border-2 border-dashed border-slate-300 hover:border-[#5B9DFF] flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-[#5B9DFF] transition-colors flex-shrink-0 bg-slate-50 cursor-pointer"
+                title="Add more photos"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="text-[9px] font-bold">Add</span>
+              </button>
+            </div>
+          )}
+
           {isRecordingVoice ? (
-            <div className="flex items-center gap-3 bg-blue-50/80 rounded-full px-4 py-3 border border-blue-200/60 animate-in slide-in-from-bottom-2">
-              <button onClick={() => setIsRecordingVoice(false)} className="p-1.5 rounded-full bg-rose-100 text-rose-600"><Trash2 className="w-4 h-4" /></button>
-              <div className="flex-1 flex items-center gap-3">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-                <span className="text-xs font-bold text-slate-700 tabular-nums">{Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, '0')}</span>
-                <div className="flex-1 flex items-center gap-0.5 h-6">
-                  {liveWaveform.map((h, i) => <div key={i} className="w-0.5 bg-blue-400 rounded-full transition-all" style={{ height: `${Math.max(10, h)}%` }} />)}
+            <div className="flex items-center gap-3 bg-slate-100/90 rounded-full px-4 py-2.5 border border-slate-300/80 animate-in slide-in-from-bottom-2">
+              <button
+                type="button"
+                onClick={() => setIsRecordingVoice(false)}
+                className="p-1.5 rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition cursor-pointer"
+                title="Discard"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <div className="flex-1 flex items-center gap-2.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                <span className="text-xs font-bold text-slate-700 tabular-nums">
+                  {Math.floor(recordingSeconds / 60)}:{(recordingSeconds % 60).toString().padStart(2, '0')}
+                </span>
+                <div className="flex-1 flex items-center gap-0.5 h-5 overflow-hidden">
+                  {liveWaveform.map((h, i) => (
+                    <div
+                      key={i}
+                      className="w-0.5 sm:w-1 bg-slate-800 rounded-full transition-all"
+                      style={{ height: `${Math.max(15, h)}%` }}
+                    />
+                  ))}
                 </div>
               </div>
-              <button onClick={handleSendVoiceNote} className="w-9 h-9 rounded-full bg-[#5B9DFF] text-white flex items-center justify-center shadow-lg"><Send className="w-4 h-4" /></button>
+              <button
+                type="button"
+                onClick={handleSendVoiceNote}
+                className="w-9 h-9 rounded-full bg-[#5B9DFF] hover:bg-blue-600 text-white flex items-center justify-center shadow-sm transition cursor-pointer"
+                title="Send Voice Note"
+              >
+                <Send className="w-4 h-4 ml-0.5" />
+              </button>
             </div>
           ) : (
-            <div className="flex items-end gap-2 sm:gap-3">
-              <button onClick={handlePickFromGallery} className="p-2.5 rounded-2xl text-slate-400 hover:bg-slate-100 transition cursor-pointer"><ImageIcon className="w-5 h-5" /></button>
-              <button onClick={handleTakePhoto} className="p-2.5 rounded-2xl text-slate-400 hover:bg-slate-100 transition cursor-pointer"><Camera className="w-5 h-5" /></button>
-              <div className="flex-1 relative flex flex-col gap-2">
-                {attachedImage && (
-                  <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-md group animate-in zoom-in-95">
-                    <img src={attachedImage} className="w-full h-full object-cover" />
-                    <button onClick={() => setAttachedImage(null)} className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white"><X className="w-3 h-3" /></button>
-                  </div>
-                )}
-                <div className="relative">
-                  <AnimatePresence>
-                    {showInputEmojiPicker && (
-                      <EmojiPickerPopup
-                        onSelectEmoji={(emoji) => {
-                          setInputText((prev) => prev + emoji);
-                          setShowInputEmojiPicker(false);
-                        }}
-                        onClose={() => setShowInputEmojiPicker(false)}
-                        position="top"
-                        align="right"
-                      />
-                    )}
-                  </AnimatePresence>
-                  <textarea
-                    rows={1}
-                    value={inputText}
-                    onChange={handleInputChange}
-                    placeholder="Type a message..."
-                    className="w-full max-h-32 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-[20px] text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none no-scrollbar font-medium"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
+            <div className="relative flex items-center gap-2 sm:gap-2.5">
+              <AnimatePresence>
+                {showInputEmojiPicker && (
+                  <EmojiPickerPopup
+                    onSelectEmoji={(emoji) => {
+                      setInputText((prev) => prev + emoji);
+                      setShowInputEmojiPicker(false);
                     }}
+                    onClose={() => setShowInputEmojiPicker(false)}
+                    position="top"
+                    align="right"
                   />
-                  <button onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)} className="absolute right-2.5 bottom-2 p-1 text-slate-400 hover:text-blue-500 transition cursor-pointer"><Smile className="w-5 h-5" /></button>
-                </div>
+                )}
+              </AnimatePresence>
+
+              {/* 1. Sleek Modern Camera Button with Lens Glow */}
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                type="button"
+                onClick={handleTakePhoto}
+                className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950 text-white flex items-center justify-center shrink-0 shadow-md hover:bg-slate-900 active:scale-95 transition-all cursor-pointer group border border-slate-800"
+                title="Open Camera"
+              >
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#5B9DFF]/40 to-transparent opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                <Camera className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-white group-hover:text-[#5B9DFF] transition-colors stroke-[2.2] relative z-10" />
+              </motion.button>
+
+              {/* 2. Send Chat Text Input Pill */}
+              <div className="flex-1 relative flex items-center min-w-0 bg-white rounded-full border border-slate-700/90 sm:border-[1.8px] sm:border-slate-800 px-3.5 sm:px-4 py-1.5 sm:py-2 transition-all shadow-2xs focus-within:border-slate-950 focus-within:shadow-xs">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={handleInputChange}
+                  placeholder="Send chat"
+                  className="flex-1 bg-transparent text-[14px] sm:text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none min-w-0 font-normal pr-2 caret-[#FF2A6D]"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                />
+
+                {/* Inside Right of Pill: Voice Waveform / Send Button */}
+                {inputText.trim() || attachedImages.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleSendMessage}
+                    className="p-1.5 rounded-full bg-[#5B9DFF] hover:bg-blue-600 text-white transition-all shadow-xs active:scale-90 cursor-pointer"
+                    title="Send"
+                  >
+                    <Send className="w-3.5 h-3.5 ml-0.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartRecording}
+                    className="p-1 text-slate-800 hover:text-black active:scale-90 transition-transform cursor-pointer"
+                    title="Record Voice"
+                  >
+                    <VoiceWaveformIcon className="w-5 h-5 text-slate-900" />
+                  </button>
+                )}
               </div>
-              {inputText.trim() || attachedImage ? (
-                <button
-                  onClick={handleSendMessage}
-                  className="p-3 rounded-2xl bg-[#5B9DFF] text-white shadow-lg hover:bg-blue-600 transition cursor-pointer"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleStartRecording}
-                  className="p-3 rounded-2xl bg-white border border-slate-200 text-[#5B9DFF] shadow-sm hover:bg-slate-50 transition cursor-pointer"
-                >
-                  <Mic className="w-5 h-5" />
-                </button>
-              )}
+
+              {/* 3. Smile Emoji Icon */}
+              <button
+                type="button"
+                onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
+                className="p-1 sm:p-1.5 text-slate-900 hover:text-black shrink-0 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                title="Emojis"
+              >
+                <Smile className="w-6 h-6 sm:w-6.5 sm:h-6.5 text-slate-900" />
+              </button>
+
+              {/* 4. Gallery Photo Icon */}
+              <button
+                type="button"
+                onClick={handlePickFromGallery}
+                className="p-1 sm:p-1.5 text-slate-900 hover:text-black shrink-0 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                title="Attach Media"
+              >
+                <GalleryCardsIcon className="w-6 h-6 sm:w-6.5 sm:h-6.5 text-slate-900" />
+              </button>
             </div>
           )}
         </div>
@@ -1355,7 +1595,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
-        <ChatWallpaperModal isOpen={isWallpaperModalOpen} onClose={() => setIsWallpaperModalOpen(false)} currentSettings={globalWallpaper} participantName="this chat" onSaveWallpaper={(s) => setGlobalWallpaper(s)} onShowToast={onShowToast} />
+        <ChatWallpaperModal
+          isOpen={isWallpaperModalOpen}
+          onClose={() => setIsWallpaperModalOpen(false)}
+          currentSettings={threadWallpaper}
+          participantName={resolvedParticipant?.name || 'this chat'}
+          onSaveWallpaper={(s) => {
+            if (s.applyToAll) {
+              setGlobalWallpaper(s);
+              try {
+                localStorage.setItem('funshann_global_chat_wallpaper', JSON.stringify(s));
+              } catch {}
+            } else if (recipientId) {
+              saveIndividualChatSettings(recipientId, { wallpaper: s });
+            }
+          }}
+          onShowToast={onShowToast}
+        />
         {deleteTargetMessage && (
           <DeleteMessageConfirmModal
             isOpen={!!deleteTargetMessage}
@@ -1403,6 +1659,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               Boolean(resolvedParticipant.uid && lockedChatUserIds.includes(resolvedParticipant.uid))
             }
             onToggleLockChat={onToggleLockChat}
+            onOpenWallpaper={() => setIsWallpaperModalOpen(true)}
             onShowToast={onShowToast}
           />
         )}

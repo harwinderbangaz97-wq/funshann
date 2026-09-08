@@ -150,13 +150,13 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({ voiceNot
   const formattedTotal = `0:${duration < 10 ? '0' : ''}${duration}`;
 
   return (
-    <div className="w-64 sm:w-72 py-1 select-none">
-      <div className="flex items-center gap-3">
+    <div className="w-[230px] sm:w-[260px] py-0 select-none">
+      <div className="flex items-center gap-2">
         {/* Play/Pause Button */}
         <motion.button
           whileTap={{ scale: 0.88 }}
           onClick={togglePlay}
-          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm transition-all ${
+          className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-xs transition-all ${
             isMe
               ? 'bg-white text-[#5B9DFF] hover:bg-slate-50'
               : 'neu-raised text-[#5B9DFF] hover:bg-slate-50'
@@ -164,15 +164,15 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({ voiceNot
           aria-label={isPlaying ? 'Pause voice message' : 'Play voice message'}
         >
           {isPlaying ? (
-            <Pause className="w-4.5 h-4.5 fill-current" />
+            <Pause className="w-3 h-3 fill-current" />
           ) : (
-            <Play className="w-4.5 h-4.5 fill-current translate-x-0.5" />
+            <Play className="w-3 h-3 fill-current translate-x-0.5" />
           )}
         </motion.button>
 
         {/* Waveform & Scrubber */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-[3px] h-9 cursor-pointer py-1">
+          <div className="flex items-center gap-[2px] h-5 cursor-pointer py-0">
             {waveform.map((val, idx) => {
               const barProgress = idx / waveform.length;
               const isPassed = barProgress <= playbackProgress;
@@ -192,7 +192,7 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({ voiceNot
                     }
                     transition={{ repeat: isPlaying ? Infinity : 0, duration: 0.4 }}
                     style={{ height: `${heightPercent}%` }}
-                    className={`w-full max-w-[4px] rounded-full transition-colors duration-150 ${
+                    className={`w-full max-w-[3px] rounded-full transition-colors duration-150 ${
                       isMe
                         ? isPassed
                           ? 'bg-white'
@@ -209,18 +209,18 @@ export const VoiceMessageBubble: React.FC<VoiceMessageBubbleProps> = ({ voiceNot
 
           {/* Timers and Speed */}
           <div
-            className={`flex items-center justify-between text-[10px] font-semibold mt-0.5 ${
+            className={`flex items-center justify-between text-[8.5px] font-semibold mt-0.5 ${
               isMe ? 'text-white/85' : 'text-slate-500'
             }`}
           >
-            <div className="flex items-center gap-1.5">
-              <Mic className="w-3 h-3 opacity-70" />
+            <div className="flex items-center gap-1">
+              <Mic className="w-2 h-2 opacity-70" />
               <span>{isPlaying ? formattedCurrent : formattedTotal}</span>
             </div>
 
             <button
               onClick={cycleSpeed}
-              className={`px-1.5 py-0.5 rounded-md font-bold text-[9px] transition ${
+              className={`px-1 py-0 rounded font-bold text-[7.5px] transition leading-tight ${
                 isMe
                   ? 'bg-white/20 hover:bg-white/30 text-white'
                   : 'neu-inset text-[#5B9DFF]'

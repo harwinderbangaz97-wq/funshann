@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, Component, ErrorInfo, lazy, Suspense } from 'react';
+import { deleteDoc } from 'firebase/firestore';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Check, Loader2 } from 'lucide-react';
@@ -91,6 +92,7 @@ import {
   getUserFollowingsFromFirestore,
   getUserFollowersFromFirestore,
   subscribeToFollows,
+  checkUserExists,
   isPostByUserId,
   getUserPostsCountFromFirestore,
 } from './services/firebase';
@@ -224,19 +226,43 @@ function AppContent() {
       .catch(console.warn);
 
     // Subscribe to follows collection changes for real-time updates
-    const unsubscribeFollows = subscribeToFollows((records) => {
-      const myFollowingSet = new Set(
-        records
-          .filter((f) => (f.followerId === currentUser.id || f.followerUid === currentUser.id) && (f.followingId !== currentUser.id && f.followingUid !== currentUser.id))
-          .map((f) => f.followingId || f.followingUid)
+    const unsubscribeFollows = subscribeToFollows(async (records) => {
+      const myRecords = records.filter(
+        (f) =>
+          f.followerId === currentUser.id ||
+          f.followerUid === currentUser.id ||
+          f.followingId === currentUser.id ||
+          f.followingUid === currentUser.id
       );
-      const myFollowersSet = new Set(
-        records
-          .filter((f) => (f.followingId === currentUser.id || f.followingUid === currentUser.id) && (f.followerId !== currentUser.id && f.followerUid !== currentUser.id))
-          .map((f) => f.followerId || f.followerUid)
-      );
-      const myFollowingList = Array.from(myFollowingSet);
-      const myFollowersList = Array.from(myFollowersSet);
+
+      const validFollowing = new Set<string>();
+      const validFollowers = new Set<string>();
+
+      for (const f of myRecords) {
+        const isMeFollower =
+          f.followerId === currentUser.id || f.followerUid === currentUser.id;
+        const otherId = isMeFollower
+          ? f.followingId || f.followingUid
+          : f.followerId || f.followerUid;
+
+        if (!otherId || otherId === currentUser.id) continue;
+
+        const exists = await checkUserExists(otherId);
+        if (exists) {
+          if (isMeFollower) validFollowing.add(otherId);
+          else validFollowers.add(otherId);
+        } else {
+          try {
+            // Delete dangling ghost record directly
+            await deleteDoc(doc(db, 'follows', f.id));
+          } catch (e) {
+            console.warn('Failed to delete dangling follow', e);
+          }
+        }
+      }
+
+      const myFollowingList = Array.from(validFollowing);
+      const myFollowersList = Array.from(validFollowers);
 
       setCurrentUser((prev) => {
         if (
@@ -1378,7 +1404,8 @@ function AppContent() {
     privacyMode: MessagePrivacyMode = 'normal',
     isForwarded?: boolean,
     forwardedFrom?: string,
-    skipFirestoreWrite?: boolean
+    skipFirestoreWrite?: boolean,
+    images?: string[]
   ) => {
     const deterministicId = [currentUser.id, receiverId].sort().join('_');
 
@@ -1386,7 +1413,8 @@ function AppContent() {
     if (!skipFirestoreWrite) {
       sendChatMessage(currentUser.id, receiverId, {
         text,
-        imageUrl,
+        imageUrl: imageUrl || (images && images[0]),
+        images,
         voiceNote,
         privacyMode,
         isForwarded,
@@ -1396,14 +1424,17 @@ function AppContent() {
 
     // Update thread preview metadata in thread list without pushing to local messages state
     setChatThreads((prevThreads) => {
+      const count = images?.length || (imageUrl ? 1 : 0);
       const summaryText = voiceNote
         ? `Voice note (0:${voiceNote.durationSeconds < 10 ? '0' : ''}${voiceNote.durationSeconds})`
-        : (text || (imageUrl ? 'Photo attachment' : ''));
+        : (text || (count > 1 ? `📷 ${count} photos` : (imageUrl ? '📷 Photo' : '')));
 
       const currentUid = currentUser.uid || currentUser.id;
       const lastMessageObj = {
         text: summaryText,
-        imageUrl,
+        imageUrl: imageUrl || (images && images[0]),
+        images,
+        mediaCount: count,
         isVoice: !!voiceNote,
         voiceDuration: voiceNote?.durationSeconds,
         timestamp: format12HourTime(Date.now()),

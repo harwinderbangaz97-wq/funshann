@@ -13,8 +13,9 @@ import {
   Palette,
   CheckCheck,
   Trash2,
+  Sparkle,
 } from 'lucide-react';
-import { CHAT_WALLPAPERS, ChatWallpaper } from '../data/wallpapers';
+import { CHAT_WALLPAPERS, ChatWallpaper, WHATSAPP_DOODLE_SVG } from '../data/wallpapers';
 import { usePermissionAndMedia } from '../context/PermissionAndMediaContext';
 
 export interface ChatWallpaperSettings {
@@ -23,6 +24,7 @@ export interface ChatWallpaperSettings {
   dimming: number; // 0 to 80 percent
   blur: number; // 0 to 12 px
   applyToAll: boolean;
+  doodleOverlay?: boolean;
 }
 
 interface ChatWallpaperModalProps {
@@ -34,6 +36,107 @@ interface ChatWallpaperModalProps {
   onShowToast?: (msg: string) => void;
 }
 
+export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): React.CSSProperties {
+  if (!settings) return { background: '#efeae2' };
+
+  if (settings.wallpaperId === 'custom' && settings.customUrl) {
+    if (settings.doodleOverlay) {
+      return {
+        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}"), url(${settings.customUrl})`,
+        backgroundSize: '240px 240px, cover',
+        backgroundPosition: 'center, center',
+        backgroundRepeat: 'repeat, no-repeat',
+      };
+    }
+    return {
+      backgroundImage: `url(${settings.customUrl})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+    };
+  }
+
+  const active = CHAT_WALLPAPERS.find((w) => w.id === settings.wallpaperId) || CHAT_WALLPAPERS[0];
+
+  if (active.id === 'clean-default') {
+    if (settings.doodleOverlay) {
+      return {
+        backgroundColor: '#f8fafc',
+        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+        backgroundSize: '240px 240px',
+        backgroundRepeat: 'repeat',
+      };
+    }
+    return {
+      background: '#f8fafc',
+    };
+  }
+
+  if (active.type === 'doodle') {
+    return {
+      backgroundColor: active.value,
+      backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+      backgroundSize: '240px 240px',
+      backgroundRepeat: 'repeat',
+    };
+  }
+
+  if (active.type === 'solid') {
+    if (settings.doodleOverlay) {
+      return {
+        backgroundColor: active.value,
+        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+        backgroundSize: '240px 240px',
+        backgroundRepeat: 'repeat',
+      };
+    }
+    return {
+      backgroundColor: active.value,
+    };
+  }
+
+  if (active.type === 'image') {
+    if (settings.doodleOverlay) {
+      return {
+        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}"), url(${active.value})`,
+        backgroundSize: '240px 240px, cover',
+        backgroundPosition: 'center, center',
+        backgroundRepeat: 'repeat, no-repeat',
+      };
+    }
+    return {
+      backgroundImage: `url(${active.value})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+    };
+  }
+
+  if (active.type === 'gradient') {
+    if (settings.doodleOverlay) {
+      return {
+        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}"), ${active.value}`,
+        backgroundSize: '240px 240px, 100% 100%',
+        backgroundRepeat: 'repeat, no-repeat',
+      };
+    }
+    return {
+      background: active.value,
+    };
+  }
+
+  if (active.type === 'pattern') {
+    return {
+      backgroundColor: '#f8fafc',
+      backgroundImage: active.value,
+      backgroundSize: active.id === 'dot-grid' ? '18px 18px' : '24px 24px',
+      backgroundPosition: 'center',
+    };
+  }
+
+  return { background: '#efeae2' };
+}
+
 export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
   isOpen,
   onClose,
@@ -43,21 +146,27 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
   onShowToast,
 }) => {
   const { pickMedia } = usePermissionAndMedia();
-  const [activeCategory, setActiveCategory] = useState<'all' | 'minimal' | 'gradient' | 'nature' | 'dark'>('all');
-  const [selectedWallpaperId, setSelectedWallpaperId] = useState(currentSettings?.wallpaperId || 'clean-default');
+  const [activeCategory, setActiveCategory] = useState<
+    'all' | 'whatsapp' | 'solid' | 'gradient' | 'nature' | 'dark' | 'minimal'
+  >('all');
+  const [selectedWallpaperId, setSelectedWallpaperId] = useState(
+    currentSettings?.wallpaperId || 'whatsapp-doodle-beige'
+  );
   const [customUrl, setCustomUrl] = useState(currentSettings?.customUrl || '');
-  const [dimming, setDimming] = useState(currentSettings?.dimming ?? 15);
+  const [dimming, setDimming] = useState(currentSettings?.dimming ?? 0);
   const [blur, setBlur] = useState(currentSettings?.blur ?? 0);
   const [applyToAll, setApplyToAll] = useState(currentSettings?.applyToAll ?? false);
+  const [doodleOverlay, setDoodleOverlay] = useState(currentSettings?.doodleOverlay ?? false);
 
   // Sync state whenever modal is opened or currentSettings changes
   useEffect(() => {
     if (isOpen && currentSettings) {
-      setSelectedWallpaperId(currentSettings.wallpaperId || 'clean-default');
+      setSelectedWallpaperId(currentSettings.wallpaperId || 'whatsapp-doodle-beige');
       setCustomUrl(currentSettings.customUrl || '');
-      setDimming(typeof currentSettings.dimming === 'number' ? currentSettings.dimming : 15);
+      setDimming(typeof currentSettings.dimming === 'number' ? currentSettings.dimming : 0);
       setBlur(typeof currentSettings.blur === 'number' ? currentSettings.blur : 0);
       setApplyToAll(Boolean(currentSettings.applyToAll));
+      setDoodleOverlay(Boolean(currentSettings.doodleOverlay));
     }
   }, [isOpen, currentSettings]);
 
@@ -90,6 +199,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
       dimming,
       blur,
       applyToAll,
+      doodleOverlay,
     };
     onSaveWallpaper(payload);
     if (onShowToast) {
@@ -104,61 +214,31 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
 
   const handleResetToDefault = () => {
     const defaultSettings: ChatWallpaperSettings = {
-      wallpaperId: 'clean-default',
+      wallpaperId: 'whatsapp-doodle-beige',
       customUrl: undefined,
       dimming: 0,
       blur: 0,
       applyToAll,
+      doodleOverlay: false,
     };
-    setSelectedWallpaperId('clean-default');
+    setSelectedWallpaperId('whatsapp-doodle-beige');
     setCustomUrl('');
     setDimming(0);
     setBlur(0);
+    setDoodleOverlay(false);
     onSaveWallpaper(defaultSettings);
-    if (onShowToast) onShowToast('Wallpaper reset to clean default! 🧼');
+    if (onShowToast) onShowToast('Wallpaper reset to WhatsApp Classic Doodle! ✨');
     onClose();
   };
 
-  // Helper to compute background styling for the live preview
-  const getPreviewBackgroundStyle = () => {
-    if (selectedWallpaperId === 'custom' && customUrl) {
-      return {
-        backgroundImage: `url(${customUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      };
-    }
-    if (activeWallpaper.id === 'clean-default') {
-      return {
-        background: '#f8fafc',
-      };
-    }
-    if (activeWallpaper.type === 'image') {
-      return {
-        backgroundImage: `url(${activeWallpaper.value})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      };
-    }
-    if (activeWallpaper.type === 'gradient') {
-      return {
-        background: activeWallpaper.value,
-      };
-    }
-    if (activeWallpaper.type === 'pattern') {
-      return {
-        backgroundColor: '#f8fafc',
-        backgroundImage: activeWallpaper.value,
-        backgroundSize: activeWallpaper.id === 'dot-grid' ? '18px 18px' : '24px 24px',
-        backgroundPosition: 'center',
-      };
-    }
-    return {
-      background: '#f8fafc',
-    };
-  };
+  const previewStyle = computeChatWallpaperStyle({
+    wallpaperId: selectedWallpaperId,
+    customUrl: selectedWallpaperId === 'custom' ? customUrl : undefined,
+    dimming,
+    blur,
+    applyToAll,
+    doodleOverlay,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/65 backdrop-blur-sm animate-in fade-in duration-200">
@@ -177,13 +257,13 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-800">Chat Wallpaper Studio</h3>
               <p className="text-[10px] text-slate-500 font-medium">
-                Select clean textures, photography, or upload
+                WhatsApp Doodles, Solid Colors & Custom Uploads
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full neu-raised flex items-center justify-center text-slate-500 hover:text-slate-800 transition"
+            className="w-8 h-8 rounded-full neu-raised flex items-center justify-center text-slate-500 hover:text-slate-800 transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -198,8 +278,8 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                 <Eye className="w-3.5 h-3.5 text-[#5B9DFF]" />
                 Live Chat Simulation
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#5B9DFF] border border-blue-100">
-                {selectedWallpaperId === 'custom' ? 'Custom Upload' : activeWallpaper.name}
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-[#5B9DFF] border border-blue-100 truncate max-w-[180px]">
+                {selectedWallpaperId === 'custom' ? 'Custom Photo' : activeWallpaper.name}
               </span>
             </div>
 
@@ -208,38 +288,38 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
               <div
                 className="absolute inset-0 transition-all duration-300"
                 style={{
-                  ...getPreviewBackgroundStyle(),
+                  ...previewStyle,
                   filter: blur > 0 ? `blur(${blur}px)` : undefined,
                   transform: blur > 0 ? 'scale(1.08)' : undefined,
                 }}
               />
 
               {/* Dimming & Contrast Overlay */}
-              {selectedWallpaperId !== 'clean-default' && (
+              {dimming > 0 && (
                 <div
                   className="absolute inset-0 bg-slate-950 transition-opacity duration-200 pointer-events-none"
                   style={{ opacity: dimming / 100 }}
                 />
               )}
 
-              {/* Sample Bubble 1 (Received) */}
+              {/* Sample Bubble 1 (Received - White) */}
               <div className="relative z-10 self-start max-w-[78%] mb-2">
-                <div className="bg-white/95 backdrop-blur-md rounded-[18px] rounded-bl-xs p-2.5 text-[11px] text-slate-800 shadow-sm border border-white/80">
-                  <p className="leading-snug font-medium">Hey! How does this clean wallpaper texture look?</p>
+                <div className="bg-white rounded-[16px] rounded-bl-[3px] p-2.5 text-[11px] text-[#111b21] shadow-xs border border-slate-200/40">
+                  <p className="leading-snug font-normal">Sahi aa, look at this clean wallpaper!</p>
+                  <span className="text-[9px] text-slate-400 font-medium float-right mt-1 ml-2">
+                    7:06 pm
+                  </span>
                 </div>
-                <span className="text-[9px] text-slate-500 font-bold ml-1 bg-white/70 backdrop-blur-xs px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                  10:42 AM
-                </span>
               </div>
 
-              {/* Sample Bubble 2 (Sent) */}
+              {/* Sample Bubble 2 (Sent - WhatsApp Green) */}
               <div className="relative z-10 self-end max-w-[78%]">
-                <div className="neu-active-blue rounded-[18px] rounded-br-xs p-2.5 text-[11px] text-white shadow-md">
-                  <p className="leading-snug font-medium">It feels super clean, aesthetic and readable! ✨</p>
-                </div>
-                <div className="flex items-center justify-end gap-1 mt-0.5 mr-1 text-[9px] text-slate-500 font-bold">
-                  <span className="bg-white/70 backdrop-blur-xs px-1.5 py-0.5 rounded-md">10:43 AM</span>
-                  <CheckCheck className="w-3 h-3 text-[#5B9DFF]" />
+                <div className="bg-[#d9fdd3] rounded-[16px] rounded-br-[3px] p-2.5 text-[11px] text-[#111b21] shadow-xs">
+                  <p className="leading-snug font-normal">Yellow pag aa nal ✨</p>
+                  <div className="flex items-center justify-end gap-1 mt-0.5 text-[9px] text-slate-500 font-medium">
+                    <span>7:02 pm</span>
+                    <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -249,16 +329,18 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {[
               { id: 'all', label: 'All' },
-              { id: 'minimal', label: 'Minimal & Patterns' },
+              { id: 'whatsapp', label: 'WhatsApp Doodles' },
+              { id: 'solid', label: 'Solid Colors' },
               { id: 'gradient', label: 'Gradients' },
               { id: 'nature', label: 'Nature Scenic' },
               { id: 'dark', label: 'Dark & Cyber' },
+              { id: 'minimal', label: 'Minimalist' },
             ].map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => setActiveCategory(cat.id as typeof activeCategory)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   activeCategory === cat.id
                     ? 'neu-active-blue text-white shadow-xs'
                     : 'neu-raised text-slate-600 hover:text-slate-900'
@@ -285,14 +367,14 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                 <>
                   <img src={customUrl} alt="Custom" className="absolute inset-0 w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-1">
-                    <span className="text-[10px] font-bold text-white leading-tight">Change Upload</span>
+                    <span className="text-[10px] font-bold text-white leading-tight">Change Photo</span>
                   </div>
                 </>
               ) : (
                 <>
                   <Upload className="w-5 h-5 text-[#5B9DFF] mb-1" />
-                  <span className="text-[10px] font-bold text-slate-700 leading-tight">Upload Photo</span>
-                  <span className="text-[8px] text-slate-400">PNG, JPG, WebP</span>
+                  <span className="text-[10px] font-bold text-slate-700 leading-tight">Custom Photo</span>
+                  <span className="text-[8px] text-slate-400">Pick from device</span>
                 </>
               )}
 
@@ -318,7 +400,16 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                   }`}
                 >
                   {/* Thumbnail Rendering */}
-                  {wp.type === 'gradient' ? (
+                  {wp.type === 'doodle' ? (
+                    <div
+                      style={{
+                        backgroundColor: wp.value,
+                        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+                        backgroundSize: '120px 120px',
+                      }}
+                      className="w-full h-full"
+                    />
+                  ) : wp.type === 'gradient' ? (
                     <div style={{ background: wp.value }} className="w-full h-full" />
                   ) : wp.type === 'pattern' ? (
                     <div
@@ -331,9 +422,13 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                       className="w-full h-full"
                     />
                   ) : wp.type === 'solid' ? (
-                    <div className="w-full h-full bg-[#f8fafc] flex flex-col items-center justify-center p-2 text-slate-400">
-                      <Layers className="w-5 h-5 mb-1 text-slate-300" />
-                      <span className="text-[9px] font-bold">Clean Minimal</span>
+                    <div
+                      style={{ backgroundColor: wp.value }}
+                      className="w-full h-full flex flex-col items-center justify-center p-2 text-slate-400"
+                    >
+                      <span className="text-[9px] font-bold text-slate-600 bg-white/70 px-1.5 py-0.5 rounded-md">
+                        Solid
+                      </span>
                     </div>
                   ) : (
                     <img
@@ -366,11 +461,37 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
           <div className="neu-flat rounded-[22px] p-3.5 space-y-3 border border-slate-100">
             <div className="flex items-center gap-2">
               <Sliders className="w-3.5 h-3.5 text-[#5B9DFF]" />
-              <h4 className="text-xs font-bold text-slate-800">Wallpaper Atmosphere Tuning</h4>
+              <h4 className="text-xs font-bold text-slate-800">Atmosphere & Texture</h4>
+            </div>
+
+            {/* Doodle Texture Overlay Toggle */}
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+              <div>
+                <p className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <Sparkle className="w-3.5 h-3.5 text-[#5B9DFF]" />
+                  WhatsApp Doodle Pattern Overlay
+                </p>
+                <p className="text-[9px] text-slate-400">
+                  Adds subtle chat icons and doodles to any background
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDoodleOverlay(!doodleOverlay)}
+                className={`w-10 h-5.5 rounded-full transition-all relative p-0.5 cursor-pointer ${
+                  doodleOverlay ? 'bg-[#5B9DFF]' : 'neu-inset'
+                }`}
+              >
+                <div
+                  className={`w-4.5 h-4.5 rounded-full bg-white transition-transform ${
+                    doodleOverlay ? 'translate-x-4.5 shadow-sm' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* Dimming Slider */}
-            <div className="space-y-1">
+            <div className="space-y-1 pt-1 border-t border-slate-100">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="font-semibold text-slate-600">Background Dimming & Contrast</span>
                 <span className="font-bold text-[#5B9DFF]">{dimming}%</span>
@@ -384,9 +505,6 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                 onChange={(e) => setDimming(Number(e.target.value))}
                 className="w-full accent-[#5B9DFF] cursor-pointer"
               />
-              <p className="text-[9px] text-slate-400">
-                Enhances contrast so text bubbles remain crisp and legible against photos.
-              </p>
             </div>
 
             {/* Blur Level Buttons */}
@@ -403,7 +521,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                     key={b.val}
                     type="button"
                     onClick={() => setBlur(b.val)}
-                    className={`py-1 rounded-xl text-[10px] font-bold transition-all ${
+                    className={`py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer ${
                       blur === b.val
                         ? 'neu-active-blue text-white shadow-xs'
                         : 'neu-raised text-slate-600 hover:text-slate-900'
@@ -421,13 +539,15 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
             <div>
               <p className="text-xs font-bold text-slate-800">Apply to All Chats</p>
               <p className="text-[10px] text-slate-400">
-                Set as global default for every conversation
+                {applyToAll
+                  ? 'Will become the default for all chats'
+                  : `Only for ${participantName}`}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setApplyToAll(!applyToAll)}
-              className={`w-11 h-6 rounded-full transition-all relative p-0.5 ${
+              className={`w-11 h-6 rounded-full transition-all relative p-0.5 cursor-pointer ${
                 applyToAll ? 'bg-[#5B9DFF]' : 'neu-inset'
               }`}
             >
@@ -445,24 +565,23 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
           <button
             type="button"
             onClick={handleResetToDefault}
-            className="h-10 px-3.5 rounded-full neu-raised text-rose-500 hover:text-rose-600 text-xs font-bold flex items-center gap-1.5 transition"
-            title="Reset wallpaper to default minimal"
+            className="h-10 px-3.5 rounded-full neu-raised text-rose-500 hover:text-rose-600 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+            title="Reset wallpaper to WhatsApp Classic"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3.5 h-3.5" />
             <span>Reset</span>
           </button>
 
           <button
             type="button"
             onClick={handleApply}
-            className="flex-1 h-10 rounded-full neu-active-blue text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
+            className="flex-1 h-10 rounded-full neu-active-blue text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
           >
-            <Check className="w-4 h-4 stroke-[3]" />
-            <span>Apply Wallpaper</span>
+            <Check className="w-4 h-4" />
+            <span>Set Wallpaper</span>
           </button>
         </div>
       </motion.div>
     </div>
   );
 };
-

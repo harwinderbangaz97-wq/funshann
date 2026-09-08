@@ -165,6 +165,8 @@ export interface Message {
   receiverId: string;
   text?: string;
   imageUrl?: string;
+  images?: string[];
+  mediaUrls?: string[];
   voiceNote?: VoiceNoteData;
   timestamp: string;
   isRead: boolean;
@@ -192,6 +194,8 @@ export interface ChatThread {
   lastMessage: {
     text?: string;
     imageUrl?: string;
+    images?: string[];
+    mediaCount?: number;
     isVoice?: boolean;
     voiceDuration?: number;
     timestamp: string;

@@ -23,6 +23,7 @@ import {
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  setLogLevel,
   collection,
   doc,
   setDoc,
@@ -30,6 +31,7 @@ import {
   getDocs,
   getDocFromCache,
   getDocsFromCache,
+  getDocFromServer,
   deleteDoc,
   updateDoc,
   runTransaction,
@@ -97,6 +99,13 @@ export {
   serverTimestamp
 };
 
+// Suppress verbose SDK internal transport warnings
+try {
+  setLogLevel('error');
+} catch {
+  // Ignored
+}
+
 // Initialize single Firestore instance with persistent local cache (IndexedDB multi-tab)
 const customDatabaseId = (firebaseAppletConfig as any)?.firestoreDatabaseId || 'ai-studio-socialapp-62fabc41-f69f-4729-9770-35262e6cbe5b';
 export const db = (() => {
@@ -107,7 +116,7 @@ export const db = (() => {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
-        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: true,
       },
       customDatabaseId
     );
@@ -121,6 +130,20 @@ export const db = (() => {
     }
   }
 })();
+
+// Validate initial connection as recommended by Firebase SDK guidelines
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('Firestore offline fallback active.');
+    }
+  }
+}
+if (typeof window !== 'undefined') {
+  testConnection().catch(() => {});
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -1458,6 +1481,21 @@ export const getUserProfileFromFirestore = async (userId: string): Promise<User 
   } catch (error) {
     console.warn('Firestore read user profile fallback:', error);
     return null;
+  }
+};
+
+export const checkUserExists = async (userId: string): Promise<boolean> => {
+  try {
+    if (!userId) return false;
+    const snap = await getDoc(doc(db, 'users', userId));
+    return snap.exists();
+  } catch (error) {
+    try {
+      const cacheSnap = await getDocFromCache(doc(db, 'users', userId));
+      return cacheSnap.exists();
+    } catch {
+      return true; // Fallback to true to prevent accidental deletion on network errors
+    }
   }
 };
 
