@@ -299,19 +299,26 @@ function AppContent() {
     return () => unsubscribeFollows();
   }, [currentUser?.id]);
 
-  const [showSplash, setShowSplash] = useState<boolean>(() => {
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('funshann_splash_shown') === 'true') {
-      return false;
-    }
-    return true;
-  });
+  const [showSplash, setShowSplash] = useState<boolean>(true);
+  const [isUserDataReady, setIsUserDataReady] = useState<boolean>(false);
+  const [initTimeoutReached, setInitTimeoutReached] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Safety fallback so splash screen never hangs if network/offline issue occurs
+    const timer = setTimeout(() => {
+      setInitTimeoutReached(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleFinishSplash = useCallback(() => {
     setShowSplash(false);
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem('funshann_splash_shown', 'true');
-    }
   }, []);
+
+  // The app is ready when Firebase auth has completed initialization,
+  // AND either there is no logged-in user (ready for auth screen)
+  // OR the logged-in user's profile data has finished loading from Firestore.
+  const isAppReady = initTimeoutReached || (authInitialized && (!user || (Boolean(currentUser?.id) && isUserDataReady)));
 
   const handleAuthenticate = (user: Partial<User>) => {
     handleUpdateCurrentUser(user);
@@ -511,11 +518,25 @@ function AppContent() {
           }
         } catch (err) {
           console.error("Auth state change profile fetch error:", err);
+          setCurrentUser((prev) => {
+            if (prev && prev.id) return prev;
+            return {
+              ...EMPTY_USER,
+              id: user.uid,
+              name: user.displayName || 'Funshann Member',
+              username: (user.displayName || user.email?.split('@')[0] || `user_${user.uid.slice(0, 6)}`).toLowerCase().replace(/[^a-z0-9_]/g, ''),
+              email: user.email || '',
+              avatar: user.photoURL || DEFAULT_AVATAR,
+            };
+          });
+        } finally {
+          setIsUserDataReady(true);
         }
       } else {
         setCurrentUser(EMPTY_USER);
         setNotifications([]);
         setChatThreads([]);
+        setIsUserDataReady(true);
         try {
           localStorage.removeItem('funshann_current_user');
         } catch {
@@ -1988,19 +2009,15 @@ function AppContent() {
   return (
     <>
       <AnimatePresence>
-        {(showSplash || loading) && (
-          <SplashScreen onFinish={handleFinishSplash} />
+        {(showSplash || !isAppReady) && (
+          <SplashScreen isReady={isAppReady} onFinish={handleFinishSplash} />
         )}
       </AnimatePresence>
 
-      {!showSplash && authInitialized && !user ? (
+      {!showSplash && isAppReady && !user ? (
         <WelcomeAuthScreen theme={theme} onAuthenticate={handleAuthenticate} />
-      ) : (!showSplash && authInitialized && user && (!currentUser || !currentUser.id)) ? (
-        <div className="flex justify-center items-center h-screen w-screen bg-[#0F172A] text-white">
-          <LoadingSpinner />
-        </div>
       ) : (
-        !showSplash && !loading && (
+        !showSplash && isAppReady && (
           <DeviceFrame theme={theme} onThemeChange={handleUpdateTheme}>
       {/* Android Native Edge Swipe Back Handler & Visual Indicator */}
       <AndroidGestureBack onBack={goBack} canGoBack={canGoBack} />
@@ -2336,12 +2353,7 @@ export default function App() {
         <LanguageProvider>
           <PermissionAndMediaProvider>
             <NavigationProvider>
-              <Suspense fallback={
-                <div className="min-h-screen flex flex-col items-center justify-center bg-[#f4f7fb]">
-                  <div className="w-10 h-10 border-4 border-[#5B9DFF]/20 border-t-[#5B9DFF] rounded-full animate-spin mb-4" />
-                  <p className="text-slate-500 font-medium animate-pulse">Loading App...</p>
-                </div>
-              }>
+              <Suspense fallback={<SplashScreen isReady={false} />}>
                 <AppContent />
               </Suspense>
             </NavigationProvider>

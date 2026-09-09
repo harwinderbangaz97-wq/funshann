@@ -1,17 +1,26 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 
 interface SplashScreenProps {
-  onFinish: () => void;
+  onFinish?: () => void;
+  isReady?: boolean;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish, isReady = true }) => {
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
   useEffect(() => {
     const timer = setTimeout(() => {
-      onFinish();
+      setMinTimeElapsed(true);
     }, 1800);
     return () => clearTimeout(timer);
-  }, [onFinish]);
+  }, []);
+
+  useEffect(() => {
+    if (minTimeElapsed && isReady) {
+      onFinish?.();
+    }
+  }, [minTimeElapsed, isReady, onFinish]);
 
   return (
     <motion.div
