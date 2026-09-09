@@ -1787,8 +1787,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   threads.filter(t => !searchQuery || (t.isGroup ? t.groupName : t.participant?.name)?.toLowerCase().includes(searchQuery.toLowerCase())).map((thread) => (
                     <motion.div key={thread.id} whileTap={{ scale: 0.98 }} onClick={() => onSelectThread(thread.id)} className="flex items-center gap-4 p-4 rounded-3xl hover:bg-white hover:shadow-md transition cursor-pointer border border-transparent hover:border-slate-100 group">
                       <div className="relative flex-shrink-0">
-                        <img src={thread.isGroup ? (thread.groupAvatar || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80') : (thread.participant?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')} alt={thread.isGroup ? thread.groupName : thread.participant?.name} className="w-14 h-14 rounded-2xl object-cover shadow-sm group-hover:scale-105 transition-transform" />
-                        {!thread.isGroup && thread.participant?.isOnline && <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />}
+                        <img src={thread.isGroup ? (thread.groupAvatar || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80') : (thread.participant?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')} alt={thread.isGroup ? thread.groupName : thread.participant?.name} className="w-14 h-14 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform" />
+                        {!thread.isGroup && thread.participant?.isOnline && <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
