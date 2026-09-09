@@ -89,7 +89,8 @@ interface ProfileViewProps {
   onUpdateCaption?: (postId: string, newCaption: string) => void;
 }
 
-const getSocialIcon = (platform: SocialLink['platform']) => {
+const getSocialIcon = (platform?: SocialLink['platform'] | string) => {
+  if (!platform) return Globe;
   switch (platform) {
     case 'whatsapp':
       return PhoneCall;
@@ -174,26 +175,40 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   const selectedPreviewPost = navState.previewPost;
 
   const activeUser = currentUser;
-  const displayedUser: User = profileUser || activeUser || {
-    id: 'user_fallback',
-    name: 'Funshann Member',
-    username: 'user',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    postsCount: 0,
-    followersCount: 0,
-    followingCount: 0,
+  const rawDisplayedUser = profileUser || activeUser;
+  const displayedUser: User = {
+    id: rawDisplayedUser?.id || activeUser?.id || 'user_fallback',
+    name: rawDisplayedUser?.name || activeUser?.name || 'Funshann Member',
+    username: rawDisplayedUser?.username || activeUser?.username || 'user',
+    avatar: rawDisplayedUser?.avatar || activeUser?.avatar || DEFAULT_AVATAR,
+    bio: rawDisplayedUser?.bio || '',
+    website: rawDisplayedUser?.website || '',
+    location: rawDisplayedUser?.location || '',
+    interests: Array.isArray(rawDisplayedUser?.interests) ? rawDisplayedUser.interests : [],
+    socialLinks: Array.isArray(rawDisplayedUser?.socialLinks) ? rawDisplayedUser.socialLinks : [],
+    postsCount: rawDisplayedUser?.postsCount ?? 0,
+    followersCount: rawDisplayedUser?.followersCount ?? 0,
+    followingCount: rawDisplayedUser?.followingCount ?? 0,
+    isVerified: Boolean(rawDisplayedUser?.isVerified),
+    isFollowing: Boolean(rawDisplayedUser?.isFollowing),
   };
-  const isOwnProfile = Boolean(displayedUser?.id && activeUser?.id && displayedUser.id === activeUser.id);
+
+  // User is viewing their own profile if profileUser is not explicitly passed (e.g. clicked Profile in bottom nav),
+  // OR if the target profile id matches the current active user id
+  const isOwnProfile = !profileUser || Boolean(
+    activeUser?.id && (displayedUser.id === activeUser.id || displayedUser.id === 'user_fallback' || !displayedUser.id)
+  );
+
   const isFollowing = !isOwnProfile && currentUser
-    ? ((currentUser.following || []).includes(displayedUser.id) || Boolean(displayedUser.isFollowing))
+    ? (Array.isArray(currentUser.following) && currentUser.following.includes(displayedUser.id) || Boolean(displayedUser.isFollowing))
     : Boolean(displayedUser.isFollowing);
-  const isUserLocked = lockedChatUserIds.includes(displayedUser.id);
-  const userAvatar =
-    displayedUser.avatar ||
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
+  const isUserLocked = Array.isArray(lockedChatUserIds) ? lockedChatUserIds.includes(displayedUser.id) : false;
+  const userAvatar = displayedUser.avatar || DEFAULT_AVATAR;
 
   // Fetch Followers / Following from Firestore for the target profile user
-  const targetProfileUserId = displayedUser?.id || profileUser?.id || currentUser?.id;
+  const targetProfileUserId = displayedUser.id && displayedUser.id !== 'user_fallback'
+    ? displayedUser.id
+    : (currentUser?.id || '');
 
   // Real calculated counters based on existing Firestore records
   const effectivePostsCount = Array.isArray(userPosts)
@@ -204,12 +219,18 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   const [realFollowingCount, setRealFollowingCount] = useState<number>(() => displayedUser.followingCount ?? 0);
 
   useEffect(() => {
-    if (!targetProfileUserId) return;
+    setRealFollowersCount(displayedUser.followersCount ?? 0);
+    setRealFollowingCount(displayedUser.followingCount ?? 0);
+  }, [displayedUser.id, displayedUser.followersCount, displayedUser.followingCount]);
+
+  useEffect(() => {
+    if (!targetProfileUserId || targetProfileUserId === 'user_fallback') return;
+    let isMounted = true;
 
     // Direct Firestore fetch using followingUid/followingId and followerUid/followerId
     getUserFollowingsFromFirestore(targetProfileUserId)
       .then((followingList) => {
-        if (followingList) {
+        if (isMounted && Array.isArray(followingList)) {
           setRealFollowingCount(followingList.length);
         }
       })
@@ -217,7 +238,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
 
     getUserFollowersFromFirestore(targetProfileUserId)
       .then((followersList) => {
-        if (followersList) {
+        if (isMounted && Array.isArray(followersList)) {
           setRealFollowersCount(followersList.length);
         }
       })
@@ -225,21 +246,25 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
 
     // Live subscription to keep counts updating dynamically when follows are added/removed
     const unsubscribe = subscribeToFollows((records) => {
+      if (!isMounted || !Array.isArray(records)) return;
       const followings = new Set(
         records
-          .filter((f) => f.followerId === targetProfileUserId && f.followingId !== targetProfileUserId)
+          .filter((f) => f && f.followerId === targetProfileUserId && f.followingId !== targetProfileUserId)
           .map((f) => f.followingId)
       );
       const followers = new Set(
         records
-          .filter((f) => f.followingId === targetProfileUserId && f.followerId !== targetProfileUserId)
+          .filter((f) => f && f.followingId === targetProfileUserId && f.followerId !== targetProfileUserId)
           .map((f) => f.followerId)
       );
       setRealFollowingCount(followings.size);
       setRealFollowersCount(followers.size);
     });
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [targetProfileUserId]);
 
   useEffect(() => {
@@ -307,11 +332,13 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
     };
   }, [listModalType]);
 
+  const safeUserPosts = Array.isArray(userPosts) ? userPosts.filter((p): p is Post => Boolean(p && p.id)) : [];
+  const safeSavedPosts = Array.isArray(savedPosts) ? savedPosts.filter((p): p is Post => Boolean(p && p.id)) : [];
   const displayPosts = isOwnProfile
     ? activeSubTab === 'posts'
-      ? userPosts
-      : savedPosts
-    : userPosts;
+      ? safeUserPosts
+      : safeSavedPosts
+    : safeUserPosts;
 
   const handleShareProfile = async () => {
     const profileUrl = `https://funshann.blogspot.com/#user-${displayedUser.username}`;
@@ -564,7 +591,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 {displayedUser.location}
               </span>
             )}
-            {displayedUser.website && (
+            {displayedUser.website && typeof displayedUser.website === 'string' && (
               <a
                 href={
                   displayedUser.website.startsWith('http')
@@ -583,7 +610,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         </div>
 
         {/* User Interests / Passions Tags */}
-        {displayedUser.interests && displayedUser.interests.length > 0 && (
+        {Array.isArray(displayedUser.interests) && displayedUser.interests.length > 0 && (
           <div className="mb-3.5 pt-2 border-t border-slate-100/80">
             <div className="flex items-center gap-1.5 mb-1.5">
               <Tag className="w-3.5 h-3.5 text-[#5B9DFF]" />
@@ -592,11 +619,11 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {displayedUser.interests.map((tag) => {
-                const cleanTag = tag.replace(/^#+/, '');
+              {displayedUser.interests.filter(Boolean).map((tag, idx) => {
+                const cleanTag = String(tag).replace(/^#+/, '');
                 return (
                   <span
-                    key={tag}
+                    key={`${cleanTag}-${idx}`}
                     className="px-3 py-1 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#5B9DFF] transition-colors"
                   >
                     {cleanTag}
@@ -608,7 +635,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         )}
 
         {/* Connected Social Media Links - Icon Only */}
-        {displayedUser.socialLinks && displayedUser.socialLinks.length > 0 && (
+        {Array.isArray(displayedUser.socialLinks) && displayedUser.socialLinks.length > 0 && (
           <div className="mb-3.5 pt-2 border-t border-slate-100/80">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
@@ -620,15 +647,15 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              {displayedUser.socialLinks.map((link) => {
-                const Icon = getSocialIcon(link.platform);
+              {displayedUser.socialLinks.filter(Boolean).map((link, idx) => {
+                const Icon = getSocialIcon(link?.platform);
                 return (
                   <motion.a
-                    key={link.id}
-                    href={link.url}
+                    key={link?.id || `social-${idx}`}
+                    href={link?.url || '#'}
                     target="_blank"
                     rel="noreferrer"
-                    title={link.title || link.platform}
+                    title={link?.title || link?.platform || 'Social Link'}
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.92 }}
                     className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF] hover:border-[#5B9DFF]/50 transition group shadow-xs cursor-pointer"

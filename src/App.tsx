@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, Component, ErrorInfo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Component, ErrorInfo, Suspense } from 'react';
 import { deleteDoc } from 'firebase/firestore';
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -111,11 +111,11 @@ import {
   formatDetailed12HourTime,
 } from './services/timeUtils';
 
-const HomeTab = lazy(() => import('./components/tabs/HomeTab').then(m => ({ default: m.HomeTab })));
-const SearchTab = lazy(() => import('./components/tabs/SearchTab').then(m => ({ default: m.SearchTab })));
-const UploadTab = lazy(() => import('./components/tabs/UploadTab').then(m => ({ default: m.UploadTab })));
-const ChatTab = lazy(() => import('./components/tabs/ChatTab').then(m => ({ default: m.ChatTab })));
-const ProfileTab = lazy(() => import('./components/tabs/ProfileTab').then(m => ({ default: m.ProfileTab })));
+import { HomeTab } from './components/tabs/HomeTab';
+import { SearchTab } from './components/tabs/SearchTab';
+import { UploadTab } from './components/tabs/UploadTab';
+import { ChatTab } from './components/tabs/ChatTab';
+import { ProfileTab } from './components/tabs/ProfileTab';
 
 const EMPTY_USER: User = {
   id: '',
@@ -139,12 +139,6 @@ const EMPTY_USER: User = {
   isVerified: false,
   isOnline: false,
 };
-
-const LoadingSpinner = () => (
-  <div className="flex justify-center items-center h-full w-full p-10">
-    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-  </div>
-);
 
 function AppContent() {
   const {
@@ -2052,9 +2046,8 @@ function AppContent() {
 
       {/* Main Tab Views */}
       <main className="w-full flex-1">
-        <Suspense fallback={<LoadingSpinner />}>
-          {activeTab === 'home' && (
-            <HomeTab
+        {activeTab === 'home' && (
+          <HomeTab
               stories={stories}
               currentUser={currentUser}
               posts={posts}
@@ -2167,7 +2160,6 @@ function AppContent() {
               onUpdateCaption={handleUpdateCaption}
             />
           )}
-        </Suspense>
       </main>
 
           {/* Floating Bottom Navigation (Hidden when in full-screen ChatActivity) */}
@@ -2340,7 +2332,26 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   render() {
     if (this.state.hasError) {
-      return null;
+      return (
+        <div className="min-h-screen bg-[#F4F7FB] flex flex-col items-center justify-center p-6 text-center font-['Plus_Jakarta_Sans',sans-serif]">
+          <div className="w-16 h-16 rounded-full bg-white shadow-md flex items-center justify-center mb-4 border border-slate-100">
+            <img src="/logo.png" alt="Funshann" className="w-12 h-12 rounded-full object-cover" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-800 mb-1">Funshann encountered a temporary issue</h2>
+          <p className="text-xs text-slate-500 mb-6 max-w-xs">
+            Tap below to resume and reload the app smoothly.
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.handleReload();
+            }}
+            className="px-6 py-2.5 rounded-full bg-[#5B9DFF] text-white text-xs font-bold shadow-md hover:bg-blue-600 transition active:scale-95 cursor-pointer"
+          >
+            Reload Funshann
+          </button>
+        </div>
+      );
     }
     return this.props.children;
   }
