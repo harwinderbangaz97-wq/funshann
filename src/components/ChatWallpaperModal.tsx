@@ -15,7 +15,7 @@ import {
   Trash2,
   Sparkle,
 } from 'lucide-react';
-import { CHAT_WALLPAPERS, ChatWallpaper, WHATSAPP_DOODLE_SVG } from '../data/wallpapers';
+import { CHAT_WALLPAPERS, ChatWallpaper, CHAT_DOODLE_SVG } from '../data/wallpapers';
 import { usePermissionAndMedia } from '../context/PermissionAndMediaContext';
 
 export interface ChatWallpaperSettings {
@@ -42,7 +42,7 @@ export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): Reac
   if (settings.wallpaperId === 'custom' && settings.customUrl) {
     if (settings.doodleOverlay) {
       return {
-        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}"), url(${settings.customUrl})`,
+        backgroundImage: `url("${CHAT_DOODLE_SVG}"), url(${settings.customUrl})`,
         backgroundSize: '240px 240px, cover',
         backgroundPosition: 'center, center',
         backgroundRepeat: 'repeat, no-repeat',
@@ -56,13 +56,23 @@ export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): Reac
     };
   }
 
-  const active = CHAT_WALLPAPERS.find((w) => w.id === settings.wallpaperId) || CHAT_WALLPAPERS[0];
+  const active =
+    CHAT_WALLPAPERS.find(
+      (w) =>
+        w.id === settings.wallpaperId ||
+        (settings.wallpaperId === 'whatsapp-doodle-beige' && w.id === 'doodle-beige') ||
+        (settings.wallpaperId === 'whatsapp-doodle-dark' && w.id === 'doodle-dark') ||
+        (settings.wallpaperId === 'whatsapp-doodle-mint' && w.id === 'doodle-mint') ||
+        (settings.wallpaperId === 'whatsapp-doodle-sky' && w.id === 'doodle-sky') ||
+        (settings.wallpaperId === 'whatsapp-doodle-rose' && w.id === 'doodle-rose') ||
+        (settings.wallpaperId === 'solid-whatsapp-beige' && w.id === 'solid-beige')
+    ) || CHAT_WALLPAPERS[0];
 
   if (active.id === 'clean-default') {
     if (settings.doodleOverlay) {
       return {
         backgroundColor: '#f8fafc',
-        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+        backgroundImage: `url("${CHAT_DOODLE_SVG}")`,
         backgroundSize: '240px 240px',
         backgroundRepeat: 'repeat',
       };
@@ -75,7 +85,7 @@ export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): Reac
   if (active.type === 'doodle') {
     return {
       backgroundColor: active.value,
-      backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+      backgroundImage: `url("${CHAT_DOODLE_SVG}")`,
       backgroundSize: '240px 240px',
       backgroundRepeat: 'repeat',
     };
@@ -85,7 +95,7 @@ export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): Reac
     if (settings.doodleOverlay) {
       return {
         backgroundColor: active.value,
-        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+        backgroundImage: `url("${CHAT_DOODLE_SVG}")`,
         backgroundSize: '240px 240px',
         backgroundRepeat: 'repeat',
       };
@@ -98,7 +108,7 @@ export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): Reac
   if (active.type === 'image') {
     if (settings.doodleOverlay) {
       return {
-        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}"), url(${active.value})`,
+        backgroundImage: `url("${CHAT_DOODLE_SVG}"), url(${active.value})`,
         backgroundSize: '240px 240px, cover',
         backgroundPosition: 'center, center',
         backgroundRepeat: 'repeat, no-repeat',
@@ -115,7 +125,7 @@ export function computeChatWallpaperStyle(settings: ChatWallpaperSettings): Reac
   if (active.type === 'gradient') {
     if (settings.doodleOverlay) {
       return {
-        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}"), ${active.value}`,
+        backgroundImage: `url("${CHAT_DOODLE_SVG}"), ${active.value}`,
         backgroundSize: '240px 240px, 100% 100%',
         backgroundRepeat: 'repeat, no-repeat',
       };
@@ -147,10 +157,10 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
 }) => {
   const { pickMedia } = usePermissionAndMedia();
   const [activeCategory, setActiveCategory] = useState<
-    'all' | 'whatsapp' | 'solid' | 'gradient' | 'nature' | 'dark' | 'minimal'
+    'all' | 'doodle' | 'solid' | 'gradient' | 'nature' | 'dark' | 'minimal'
   >('all');
   const [selectedWallpaperId, setSelectedWallpaperId] = useState(
-    currentSettings?.wallpaperId || 'whatsapp-doodle-beige'
+    currentSettings?.wallpaperId || 'doodle-beige'
   );
   const [customUrl, setCustomUrl] = useState(currentSettings?.customUrl || '');
   const [dimming, setDimming] = useState(currentSettings?.dimming ?? 0);
@@ -161,7 +171,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
   // Sync state whenever modal is opened or currentSettings changes
   useEffect(() => {
     if (isOpen && currentSettings) {
-      setSelectedWallpaperId(currentSettings.wallpaperId || 'whatsapp-doodle-beige');
+      setSelectedWallpaperId(currentSettings.wallpaperId || 'doodle-beige');
       setCustomUrl(currentSettings.customUrl || '');
       setDimming(typeof currentSettings.dimming === 'number' ? currentSettings.dimming : 0);
       setBlur(typeof currentSettings.blur === 'number' ? currentSettings.blur : 0);
@@ -173,12 +183,24 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
   if (!isOpen) return null;
 
   const filteredWallpapers = CHAT_WALLPAPERS.filter((wp) => {
+    // Hide legacy storage alias IDs from the picker grid
+    if (wp.id.startsWith('whatsapp-') || wp.id === 'solid-whatsapp-beige') return false;
     if (activeCategory === 'all') return true;
+    if (activeCategory === 'doodle') return wp.category === 'doodle' || wp.category === 'whatsapp';
     return wp.category === activeCategory;
   });
 
   const activeWallpaper =
-    CHAT_WALLPAPERS.find((wp) => wp.id === selectedWallpaperId) || CHAT_WALLPAPERS[0];
+    CHAT_WALLPAPERS.find(
+      (wp) =>
+        wp.id === selectedWallpaperId ||
+        (selectedWallpaperId === 'whatsapp-doodle-beige' && wp.id === 'doodle-beige') ||
+        (selectedWallpaperId === 'whatsapp-doodle-dark' && wp.id === 'doodle-dark') ||
+        (selectedWallpaperId === 'whatsapp-doodle-mint' && wp.id === 'doodle-mint') ||
+        (selectedWallpaperId === 'whatsapp-doodle-sky' && wp.id === 'doodle-sky') ||
+        (selectedWallpaperId === 'whatsapp-doodle-rose' && wp.id === 'doodle-rose') ||
+        (selectedWallpaperId === 'solid-whatsapp-beige' && wp.id === 'solid-beige')
+    ) || CHAT_WALLPAPERS[0];
 
   const handleCustomUpload = async () => {
     const res = await pickMedia({
@@ -214,20 +236,20 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
 
   const handleResetToDefault = () => {
     const defaultSettings: ChatWallpaperSettings = {
-      wallpaperId: 'whatsapp-doodle-beige',
+      wallpaperId: 'doodle-beige',
       customUrl: undefined,
       dimming: 0,
       blur: 0,
       applyToAll,
       doodleOverlay: false,
     };
-    setSelectedWallpaperId('whatsapp-doodle-beige');
+    setSelectedWallpaperId('doodle-beige');
     setCustomUrl('');
     setDimming(0);
     setBlur(0);
     setDoodleOverlay(false);
     onSaveWallpaper(defaultSettings);
-    if (onShowToast) onShowToast('Wallpaper reset to WhatsApp Classic Doodle! ✨');
+    if (onShowToast) onShowToast('Wallpaper reset to Classic Doodle! ✨');
     onClose();
   };
 
@@ -257,7 +279,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
             <div>
               <h3 className="text-sm font-bold text-slate-800">Chat Wallpaper Studio</h3>
               <p className="text-[10px] text-slate-500 font-medium">
-                WhatsApp Doodles, Solid Colors & Custom Uploads
+                Chat Doodles, Solid Colors, Nature & Custom Photos
               </p>
             </div>
           </div>
@@ -312,7 +334,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                 </div>
               </div>
 
-              {/* Sample Bubble 2 (Sent - WhatsApp Green) */}
+              {/* Sample Bubble 2 (Sent - Light Emerald) */}
               <div className="relative z-10 self-end max-w-[78%]">
                 <div className="bg-[#d9fdd3] rounded-[16px] rounded-br-[3px] p-2.5 text-[11px] text-[#111b21] shadow-xs">
                   <p className="leading-snug font-normal">Yellow pag aa nal ✨</p>
@@ -329,7 +351,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {[
               { id: 'all', label: 'All' },
-              { id: 'whatsapp', label: 'WhatsApp Doodles' },
+              { id: 'doodle', label: 'Chat Doodles' },
               { id: 'solid', label: 'Solid Colors' },
               { id: 'gradient', label: 'Gradients' },
               { id: 'nature', label: 'Nature Scenic' },
@@ -387,7 +409,14 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
 
             {/* Curated Wallpapers */}
             {filteredWallpapers.map((wp) => {
-              const isSelected = selectedWallpaperId === wp.id;
+              const isSelected =
+                selectedWallpaperId === wp.id ||
+                (selectedWallpaperId === 'whatsapp-doodle-beige' && wp.id === 'doodle-beige') ||
+                (selectedWallpaperId === 'whatsapp-doodle-dark' && wp.id === 'doodle-dark') ||
+                (selectedWallpaperId === 'whatsapp-doodle-mint' && wp.id === 'doodle-mint') ||
+                (selectedWallpaperId === 'whatsapp-doodle-sky' && wp.id === 'doodle-sky') ||
+                (selectedWallpaperId === 'whatsapp-doodle-rose' && wp.id === 'doodle-rose') ||
+                (selectedWallpaperId === 'solid-whatsapp-beige' && wp.id === 'solid-beige');
               return (
                 <motion.div
                   key={wp.id}
@@ -404,7 +433,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
                     <div
                       style={{
                         backgroundColor: wp.value,
-                        backgroundImage: `url("${WHATSAPP_DOODLE_SVG}")`,
+                        backgroundImage: `url("${CHAT_DOODLE_SVG}")`,
                         backgroundSize: '120px 120px',
                       }}
                       className="w-full h-full"
@@ -469,7 +498,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
               <div>
                 <p className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
                   <Sparkle className="w-3.5 h-3.5 text-[#5B9DFF]" />
-                  WhatsApp Doodle Pattern Overlay
+                  Chat Doodle Pattern Overlay
                 </p>
                 <p className="text-[9px] text-slate-400">
                   Adds subtle chat icons and doodles to any background
@@ -566,7 +595,7 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
             type="button"
             onClick={handleResetToDefault}
             className="h-10 px-3.5 rounded-full neu-raised text-rose-500 hover:text-rose-600 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
-            title="Reset wallpaper to WhatsApp Classic"
+            title="Reset wallpaper to Classic Doodle"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Reset</span>

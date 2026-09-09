@@ -297,7 +297,7 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
 
-                      {/* WhatsApp + N Overlay for 4th tile */}
+                      {/* Multi-media + N Overlay for 4th tile */}
                       {hasMore && (
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center transition-all group-hover:bg-black/50">
                           <span className="text-white text-xl sm:text-2xl font-bold tracking-wider drop-shadow-md">

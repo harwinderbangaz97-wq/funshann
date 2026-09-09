@@ -1291,7 +1291,9 @@ function AppContent() {
     name: string,
     description: string,
     avatar: string,
-    memberIds: string[]
+    memberIds: string[],
+    isPrivate?: boolean,
+    category?: string
   ) => {
     const allGroupMembers = [
       currentUser,

@@ -56,8 +56,8 @@ export const ShareCommunityModal: React.FC<ShareCommunityModalProps> = ({
   const communitySlug = community.name
     ? community.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     : community.id;
-  const communityUrl = `${window.location.origin}${window.location.pathname}#community-${community.id || communitySlug}`;
-  const shareText = `Join "${community.name}" community on Funshann! Connect with members and chat in real-time.`;
+  const communityUrl = `${window.location.origin}${window.location.pathname}#group-${community.id || communitySlug}`;
+  const shareText = `Join "${community.name}" group on Funshann! Connect with members and chat in real-time.`;
 
   const memberCountDisplay = community.members || community.memberCount || '100+';
 
@@ -71,7 +71,7 @@ export const ShareCommunityModal: React.FC<ShareCommunityModalProps> = ({
     }
     setCopied(true);
     if (onShowToast) {
-      onShowToast(`Community invite link copied! 📋`, 'success');
+      onShowToast(`Group invite link copied! 📋`, 'success');
     }
     setTimeout(() => setCopied(false), 2000);
   };
@@ -81,7 +81,7 @@ export const ShareCommunityModal: React.FC<ShareCommunityModalProps> = ({
     if (onSendToContact) {
       onSendToContact(userName, community.name);
     } else if (onShowToast) {
-      onShowToast(`Sent community invite to ${userName}! 🚀`, 'success');
+      onShowToast(`Sent group invite to ${userName}! 🚀`, 'success');
     }
   };
 
@@ -195,7 +195,7 @@ export const ShareCommunityModal: React.FC<ShareCommunityModalProps> = ({
                 <Share2 className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-800 font-['Outfit']">Share Community</h3>
+                <h3 className="text-base font-bold text-slate-800 font-['Outfit']">Share Group</h3>
                 <p className="text-xs text-slate-400">Invite friends to #{community.name}</p>
               </div>
             </div>

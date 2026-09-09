@@ -585,11 +585,11 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
 
         {/* Right Header Controls */}
         <div className="flex items-center gap-1 flex-shrink-0 relative">
-          {/* Share Community Button */}
+          {/* Share Group Button */}
           <button
             onClick={() => setShowShareModal(true)}
             className="w-9 h-9 rounded-full bg-blue-50/80 hover:bg-blue-100 flex items-center justify-center text-[#5B9DFF] transition cursor-pointer"
-            title="Share Community"
+            title="Share Group"
           >
             <Share2 className="w-4.5 h-4.5" />
           </button>
@@ -611,7 +611,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
           <button
             onClick={() => setShowOptionsMenu(!showOptionsMenu)}
             className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 transition cursor-pointer"
-            title="Community Options"
+            title="Group Options"
           >
             <MoreVertical className="w-5 h-5" />
           </button>
@@ -638,7 +638,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                     className="w-full px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
                   >
                     <Info className="w-4 h-4 text-indigo-500" />
-                    <span>Community Info & Rules</span>
+                    <span>Group Info & Rules</span>
                   </button>
 
                   <button
@@ -671,7 +671,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                     className="w-full px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer text-slate-800 font-bold"
                   >
                     <Share2 className="w-4 h-4 text-[#5B9DFF]" />
-                    <span>Share Community 🔗</span>
+                    <span>Share Group 🔗</span>
                   </button>
 
                   <button
@@ -688,12 +688,12 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                   <button
                     onClick={() => {
                       setShowOptionsMenu(false);
-                      if (onShowToast) onShowToast('Community invite link copied to clipboard! 📋', 'success');
+                      if (onShowToast) onShowToast('Group invite link copied to clipboard! 📋', 'success');
                     }}
                     className="w-full px-3 py-2 text-left rounded-xl hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
                   >
                     <Share2 className="w-4 h-4 text-blue-500" />
-                    <span>Share Community</span>
+                    <span>Copy Group Link</span>
                   </button>
 
                   <div className="h-px bg-slate-100 my-1" />
@@ -706,7 +706,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                     className="w-full px-3 py-2 text-left rounded-xl hover:bg-rose-50 text-rose-600 font-bold flex items-center gap-2 transition cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 text-rose-500" />
-                    <span>{isJoined ? 'Leave Community' : 'Join Community'}</span>
+                    <span>{isJoined ? 'Leave Group' : 'Join Group'}</span>
                   </button>
                 </motion.div>
               </>
@@ -1195,7 +1195,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
               </h4>
               <p className="leading-relaxed font-medium text-slate-600">
                 {community.description ||
-                  'Welcome to our official community channel! Connect with fellow members, collaborate on projects, and share insights.'}
+                  'Welcome to our official group channel! Connect with fellow members, collaborate on projects, and share insights.'}
               </p>
             </div>
 
@@ -1204,9 +1204,9 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Guidelines & Expectations
               </h4>
               <ul className="space-y-2 text-xs text-slate-600 font-medium list-disc list-inside">
-                <li>Be respectful and constructive with all community members.</li>
+                <li>Be respectful and constructive with all group members.</li>
                 <li>No spamming, self-promotion, or off-topic advertising.</li>
-                <li>Community owner and moderators retain moderation rights to enforce rules.</li>
+                <li>Group owner and moderators retain moderation rights to enforce rules.</li>
               </ul>
             </div>
 
@@ -1216,7 +1216,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                   <Share2 className="w-4 h-4 text-[#5B9DFF]" /> Share {community.name}
                 </h4>
                 <p className="text-xs text-slate-600 mt-1">
-                  Invite friends and colleagues to join this channel via direct link or QR code.
+                  Invite friends and colleagues to join this group via direct link or QR code.
                 </p>
               </div>
               <button
@@ -1231,10 +1231,10 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
 
             <div className="p-5 bg-amber-50/70 rounded-3xl border border-amber-200/80 space-y-2">
               <h4 className="font-extrabold text-amber-900 uppercase tracking-wider text-xs flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-600" /> Community Leadership
+                <Users className="w-4 h-4 text-amber-600" /> Group Leadership
               </h4>
               <p className="text-xs text-amber-800 font-semibold">
-                This community is managed by the community head and designated moderators.
+                This group is managed by the group owner and designated moderators.
               </p>
             </div>
           </div>
@@ -1246,7 +1246,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
             <div className="p-4 bg-white rounded-3xl border border-slate-200/80 space-y-3 shadow-2xs">
               <div className="flex items-center justify-between px-1">
                 <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
-                  Community Members Roster
+                  Group Members Roster
                 </span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-400">{rosterMembers.length} Members</span>
@@ -1332,7 +1332,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                     <UserPlus className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-800">Add Member to Community</h3>
+                    <h3 className="text-sm font-bold text-slate-800">Add Member to Group</h3>
                     <p className="text-[11px] text-slate-400">Invite or add people to #{community.name}</p>
                   </div>
                 </div>
@@ -1439,7 +1439,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                   </div>
                   <div>
                     <h3 className="text-sm font-extrabold text-slate-800">Forward Message</h3>
-                    <p className="text-[10px] text-slate-400">Share this community message with a contact</p>
+                    <p className="text-[10px] text-slate-400">Share this group message with a contact</p>
                   </div>
                 </div>
                 <button

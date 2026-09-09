@@ -8,7 +8,14 @@ interface CreateGroupModalProps {
   onClose: () => void;
   currentUser: User;
   allUsers: User[];
-  onCreateGroup: (name: string, description: string, avatar: string, memberIds: string[]) => void;
+  onCreateGroup: (
+    name: string,
+    description: string,
+    avatar: string,
+    memberIds: string[],
+    isPrivate?: boolean,
+    category?: string
+  ) => void;
   onShowToast?: (msg: string) => void;
 }
 
@@ -18,6 +25,8 @@ const PRESET_GROUP_AVATARS = [
   'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600&auto=format&fit=crop&q=80',
   'https://images.unsplash.com/photo-1543269865-cbf427effbad?w=600&auto=format&fit=crop&q=80',
 ];
+
+const GROUP_CATEGORIES = ['General', 'Tech', 'Outdoors', 'Design', 'Gaming', 'Arts', 'Crypto'];
 
 export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   isOpen,
@@ -30,6 +39,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   const [groupName, setGroupName] = useState('');
   const [groupDesc, setGroupDesc] = useState('');
   const [groupAvatar, setGroupAvatar] = useState(PRESET_GROUP_AVATARS[0]);
+  const [groupCategory, setGroupCategory] = useState('General');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -47,15 +58,19 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       if (onShowToast) onShowToast('Please enter a group name');
       return;
     }
-    if (selectedMemberIds.length === 0) {
-      if (onShowToast) onShowToast('Please select at least one member');
-      return;
-    }
 
-    onCreateGroup(groupName.trim(), groupDesc.trim() || 'Collaborative group chat', groupAvatar, selectedMemberIds);
+    onCreateGroup(
+      groupName.trim(),
+      groupDesc.trim() || 'Collaborative group space',
+      groupAvatar,
+      selectedMemberIds,
+      isPrivate,
+      groupCategory
+    );
     setGroupName('');
     setGroupDesc('');
     setSelectedMemberIds([]);
+    setIsPrivate(false);
     onClose();
     if (onShowToast) onShowToast(`Created group "${groupName.trim()}" successfully! 🚀`);
   };
@@ -134,6 +149,52 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               </div>
             </div>
 
+            {/* Category & Privacy */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Category
+                </label>
+                <select
+                  value={groupCategory}
+                  onChange={(e) => setGroupCategory(e.target.value)}
+                  className="w-full px-3 py-2 rounded-[14px] bg-slate-100 border border-transparent focus:border-blue-400 focus:bg-white text-xs font-bold outline-hidden text-slate-800 transition"
+                >
+                  {GROUP_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Privacy
+                </label>
+                <div className="flex bg-slate-100 p-1 rounded-[14px]">
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivate(false)}
+                    className={`flex-1 py-1 rounded-[10px] text-xs font-bold transition cursor-pointer ${
+                      !isPrivate ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Public
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsPrivate(true)}
+                    className={`flex-1 py-1 rounded-[10px] text-xs font-bold transition cursor-pointer ${
+                      isPrivate ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Private
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Preset Avatars */}
             <div className="flex items-center gap-2 pt-1">
               <span className="text-[11px] font-semibold text-slate-400">Presets:</span>
@@ -156,7 +217,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                Select Members ({selectedMemberIds.length} selected)
+                Invite Members ({selectedMemberIds.length} selected)
               </label>
               <span className="text-[11px] text-[#5B9DFF] font-semibold">
                 Tap to toggle
@@ -217,14 +278,14 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!groupName.trim() || selectedMemberIds.length === 0}
+              disabled={!groupName.trim()}
               className={`px-5 py-2.5 rounded-[14px] text-xs font-bold text-white transition shadow-md cursor-pointer ${
-                groupName.trim() && selectedMemberIds.length > 0
+                groupName.trim()
                   ? 'neu-active-blue'
                   : 'bg-slate-300 cursor-not-allowed'
               }`}
             >
-              Create Group Chat
+              Create Group
             </button>
           </div>
         </form>

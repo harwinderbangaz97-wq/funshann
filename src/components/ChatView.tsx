@@ -195,7 +195,7 @@ interface ChatViewProps {
   onToggleFollow?: (userId: string) => void;
   onToggleLockChat?: (userId: string) => void;
   onClearChat?: (userId: string) => void;
-  onCreateGroup?: (name: string, description: string, avatar: string, memberIds: string[]) => void;
+  onCreateGroup?: (name: string, description: string, avatar: string, memberIds: string[], isPrivate?: boolean, category?: string) => void;
   onUpdateGroup?: (groupId: string, updates: { name?: string; description?: string; avatar?: string; memberIds?: string[] }) => void;
   onLeaveGroup?: (groupId: string) => void;
   allUsers?: User[];
@@ -284,7 +284,7 @@ const MessageBubbleItem: React.FC<{
     return list;
   }, [msg.images, msg.mediaUrls, msg.imageUrl]);
 
-  // If message has media and NO voice note, render WhatsApp Media Grid
+  // If message has media and NO voice note, render Media Grid
   if (mediaList.length > 0 && !msg.voiceNote) {
     return (
       <motion.div
@@ -558,7 +558,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const showThreadMenu = navState.chatMenuOpen;
   const setShowThreadMenu = setChatMenuOpen;
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeMainTab, setActiveMainTab] = useState<'messages' | 'communities'>('messages');
+  const [activeMainTab, setActiveMainTab] = useState<'messages' | 'groups' | 'communities'>('messages');
 
   const [communitySearchQuery, setCommunitySearchQuery] = useState('');
   const [selectedCommunityCategory, setSelectedCommunityCategory] = useState<string>('All');
@@ -764,6 +764,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [liveWaveform, setLiveWaveform] = useState<number[]>([20, 40, 60, 30, 75, 45, 90, 60, 30, 80, 50, 40]);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [isGroupInfoModalOpen, setIsGroupInfoModalOpen] = useState(false);
+  const [isChatSettingsOpen, setIsChatSettingsOpen] = useState(false);
+
+  const handleCreateGroupComplete = (
+    name: string,
+    desc: string,
+    avatar: string,
+    memberIds: string[],
+    isPrivate: boolean = false,
+    category: string = 'General'
+  ) => {
+    if (onCreateGroup) {
+      onCreateGroup(name, desc, avatar, memberIds, isPrivate, category);
+    }
+    const newId = 'g_' + Date.now();
+    const newGroup: Community = {
+      id: newId,
+      name,
+      description: desc || `Group created by ${currentUser.name || 'User'}`,
+      lastMessage: `${currentUser.name || 'User'}: Welcome to ${name}! 🎉`,
+      members: `${memberIds.length + 1} Members`,
+      isPrivate,
+      category,
+      gradient: 'from-blue-600 to-indigo-600',
+      bgLight: 'bg-blue-50',
+      borderLight: 'border-blue-200/60',
+      badgeColor: 'bg-blue-100 text-blue-700',
+      avatarUrl: avatar,
+    };
+    setCommunities((prev) => [newGroup, ...prev]);
+    setJoinedCommunityIds((prev) => [...prev, newId]);
+    setIsCreateGroupModalOpen(false);
+    triggerCommunityToast(`Group "${name}" created successfully! 🎉`, 'success');
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -1693,17 +1726,45 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div className="p-4 pt-[max(env(safe-area-inset-top),16px)] sm:p-6 sm:pt-6 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 z-20 sticky top-0 shadow-xs">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-3">
-            <button onClick={onBackToHome} className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500"><ArrowLeft className="w-5 h-5" /></button>
+            <button onClick={onBackToHome} className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 cursor-pointer"><ArrowLeft className="w-5 h-5" /></button>
             <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">Chat <Sparkles className="w-5 h-5 text-blue-500" /></h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <button onClick={() => setIsCreateGroupModalOpen(true)} className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200/60 hover:bg-blue-100 transition cursor-pointer" title="New Group"><UserPlus className="w-5 h-5" /></button>
-            <button onClick={() => setIsWallpaperModalOpen(true)} className="p-2.5 rounded-2xl bg-slate-100 text-slate-600 border border-slate-200/60 hover:bg-slate-200 transition cursor-pointer" title="Global Chat Settings"><Settings className="w-5 h-5" /></button>
+            <button
+              onClick={() => setIsCreateGroupModalOpen(true)}
+              className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200/60 hover:bg-blue-100 transition cursor-pointer shadow-xs active:scale-95"
+              title="Create New Group"
+            >
+              <UserPlus className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setIsChatSettingsOpen(true)}
+              className="p-2.5 rounded-2xl bg-slate-100 text-slate-600 border border-slate-200/60 hover:bg-slate-200 transition cursor-pointer shadow-xs active:scale-95"
+              title="Chat Settings"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-4 bg-slate-100/80 p-1 rounded-[18px] border border-slate-200/50">
-          <button onClick={() => setActiveMainTab('messages')} className={`flex-1 py-2 rounded-[14px] text-xs font-bold transition flex items-center justify-center gap-2 ${activeMainTab === 'messages' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><MessageSquare className="w-4 h-4" />Messages</button>
-          <button onClick={() => setActiveMainTab('communities')} className={`flex-1 py-2 rounded-[14px] text-xs font-bold transition flex items-center justify-center gap-2 ${activeMainTab === 'communities' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><UsersIcon className="w-4 h-4" />Communities</button>
+          <button
+            onClick={() => setActiveMainTab('messages')}
+            className={`flex-1 py-2 rounded-[14px] text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              activeMainTab === 'messages' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />Messages
+          </button>
+          <button
+            onClick={() => setActiveMainTab('groups')}
+            className={`flex-1 py-2 rounded-[14px] text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+              activeMainTab === 'groups' || (activeMainTab as string) === 'communities'
+                ? 'bg-white text-blue-600 shadow-md'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <UsersIcon className="w-4 h-4" />Groups
+          </button>
         </div>
       </div>
 
@@ -1746,54 +1807,126 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           )}
 
-          {activeMainTab === 'communities' && (
+          {(activeMainTab === 'groups' || (activeMainTab as string) === 'communities') && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-400">
               <div className="flex items-center gap-2">
                 <div className="flex-1 relative group">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input type="text" value={communitySearchQuery} onChange={(e) => setCommunitySearchQuery(e.target.value)} placeholder="Explore communities..." className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200/80 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none shadow-xs font-medium" />
+                  <input
+                    type="text"
+                    value={communitySearchQuery}
+                    onChange={(e) => setCommunitySearchQuery(e.target.value)}
+                    placeholder="Explore groups..."
+                    className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200/80 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none shadow-xs font-medium"
+                  />
                 </div>
-                <button onClick={() => setIsCreateCommunityOpen(true)} className="p-3.5 rounded-2xl bg-blue-500 text-white shadow-md hover:bg-blue-600 transition cursor-pointer"><Plus className="w-5 h-5" /></button>
+                <button
+                  onClick={() => setIsCreateGroupModalOpen(true)}
+                  className="p-3.5 rounded-2xl bg-blue-500 text-white shadow-md hover:bg-blue-600 transition cursor-pointer active:scale-95"
+                  title="Create Group"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
               </div>
 
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 {['All', 'Joined', 'Public', 'Private'].map((cat) => (
-                  <button key={cat} onClick={() => setSelectedCommunityCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex-shrink-0 cursor-pointer ${selectedCommunityCategory === cat ? 'bg-blue-500 text-white shadow-md' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}>{cat}</button>
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCommunityCategory(cat)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex-shrink-0 cursor-pointer ${
+                      selectedCommunityCategory === cat
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {cat}
+                  </button>
                 ))}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredCommunities.length === 0 ? (
-                  <div className="col-span-full py-20 text-center space-y-2 opacity-50"><p className="text-sm font-bold text-slate-800">No communities found</p><p className="text-xs text-slate-500">Try a different search or filter</p></div>
+                  <div className="col-span-full py-20 text-center space-y-2 opacity-50">
+                    <p className="text-sm font-bold text-slate-800">No groups found</p>
+                    <p className="text-xs text-slate-500">Try a different search or filter</p>
+                  </div>
                 ) : (
                   filteredCommunities.map((community) => {
                     const isJoined = joinedCommunityIds.includes(community.id);
                     const isPending = pendingJoinRequests.includes(community.id);
                     return (
-                      <div key={community.id} onClick={() => setSelectedChannelCommunity(community)} className="group bg-white rounded-[28px] p-5 border border-slate-100 hover:border-blue-200 hover:shadow-xl transition cursor-pointer relative overflow-hidden flex flex-col gap-4">
-                        <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${community.gradient} opacity-10 rounded-bl-[100px] transition-transform group-hover:scale-110`} />
+                      <div
+                        key={community.id}
+                        onClick={() => setSelectedChannelCommunity(community)}
+                        className="group bg-white rounded-[28px] p-5 border border-slate-100 hover:border-blue-200 hover:shadow-xl transition cursor-pointer relative overflow-hidden flex flex-col gap-4"
+                      >
+                        <div
+                          className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${community.gradient} opacity-10 rounded-bl-[100px] transition-transform group-hover:scale-110`}
+                        />
                         <div className="flex items-start gap-4">
-                          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${community.gradient} flex items-center justify-center text-white shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform`}>
-                            {community.isPrivate ? <Lock className="w-6 h-6" /> : <Globe className="w-6 h-6" />}
+                          <div
+                            className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${community.gradient} flex items-center justify-center text-white shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform overflow-hidden`}
+                          >
+                            {community.avatarUrl ? (
+                              <img src={community.avatarUrl} alt={community.name} className="w-full h-full object-cover" />
+                            ) : community.isPrivate ? (
+                              <Lock className="w-6 h-6" />
+                            ) : (
+                              <Globe className="w-6 h-6" />
+                            )}
                           </div>
-                          <div className="min-w-0">
-                            <h4 className="text-base font-bold text-slate-800 truncate mb-1 group-hover:text-blue-600 transition-colors">{community.name}</h4>
-                            <p className="text-xs text-slate-500 line-clamp-2 font-medium leading-relaxed">{community.description}</p>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-base font-bold text-slate-800 truncate mb-1 group-hover:text-blue-600 transition-colors">
+                              {community.name}
+                            </h4>
+                            <p className="text-xs text-slate-500 line-clamp-2 font-medium leading-relaxed">
+                              {community.description}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">{community.members} Members</span>
-                            {community.isPrivate && <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100">Private</span>}
-                          </div>
-                          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => setShareCommunityTarget(community)} className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition"><Share2 className="w-4 h-4" /></button>
-                            {isJoined ? (
-                              <button onClick={() => handleToggleCommunityState(community)} className="px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-600 hover:bg-rose-100 hover:text-rose-600 transition group/leave"><span className="group-hover/leave:hidden">Joined</span><span className="hidden group-hover/leave:inline">Leave</span></button>
-                            ) : isPending ? (
-                              <button className="px-4 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5 animate-pulse" />Pending</button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
+                              {community.members} Members
+                            </span>
+                            {community.isPrivate ? (
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+                                Private
+                              </span>
                             ) : (
-                              <button onClick={() => handleToggleCommunityState(community)} className="px-4 py-1.5 rounded-xl text-xs font-bold bg-blue-500 text-white shadow-md hover:bg-blue-600 transition">Join</button>
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                Public
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setShareCommunityTarget(community)}
+                              className="p-2 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition cursor-pointer"
+                              title="Share Group"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                            {isJoined ? (
+                              <button
+                                onClick={() => handleToggleCommunityState(community)}
+                                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-600 hover:bg-rose-100 hover:text-rose-600 transition group/leave cursor-pointer"
+                              >
+                                <span className="group-hover/leave:hidden">Joined</span>
+                                <span className="hidden group-hover/leave:inline">Leave</span>
+                              </button>
+                            ) : isPending ? (
+                              <button className="px-4 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-600 flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 animate-pulse" />Pending
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleToggleCommunityState(community)}
+                                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-blue-500 text-white shadow-md hover:bg-blue-600 transition cursor-pointer"
+                              >
+                                Join
+                              </button>
                             )}
                           </div>
                         </div>
@@ -1802,42 +1935,187 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   })
                 )}
               </div>
-              <button onClick={() => setIsCreateCommunityOpen(true)} className="w-full py-4 rounded-[28px] border-2 border-dashed border-slate-200 bg-white text-slate-400 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-500 transition flex items-center justify-center gap-2 font-bold text-sm shadow-xs"><Plus className="w-5 h-5" />Create Your Own Community</button>
+              <button
+                onClick={() => setIsCreateGroupModalOpen(true)}
+                className="w-full py-4 rounded-[28px] border-2 border-dashed border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition flex items-center justify-center gap-2 font-bold text-sm shadow-xs cursor-pointer active:scale-[0.99]"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Create New Group</span>
+              </button>
             </div>
           )}
         </div>
       </div>
 
+      {/* Main Group Creation Modal */}
+      <CreateGroupModal
+        isOpen={isCreateGroupModalOpen}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        currentUser={currentUser}
+        allUsers={allUsers || []}
+        onCreateGroup={(name, desc, avatar, memberIds, isPriv, cat) => {
+          handleCreateGroupComplete(name, desc, avatar, memberIds, isPriv, cat);
+        }}
+        onShowToast={(msg) => triggerCommunityToast(msg, 'success')}
+      />
+
+      {/* Upper Side Settings Modal */}
       <AnimatePresence>
-        {isCreateCommunityOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-[32px] p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto no-scrollbar">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <h3 className="text-lg font-black text-slate-800 tracking-tight">Create Community</h3>
-                <button onClick={() => setIsCreateCommunityOpen(false)} className="p-2 rounded-full hover:bg-slate-100 text-slate-400"><X className="w-5 h-5" /></button>
-              </div>
-              <form onSubmit={handleCreateCommunitySubmit} className="space-y-4">
-                <div className="space-y-1.5"><label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Community Name</label><input type="text" required value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="e.g. AI Explorers" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-semibold" /></div>
-                <div className="space-y-1.5"><label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">About</label><textarea value={createDesc} onChange={(e) => setCreateDesc(e.target.value)} placeholder="Describe your community..." className="w-full h-24 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none font-medium" /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Category</label><select value={createCategory} onChange={(e) => setCreateCategory(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-800 focus:outline-none font-bold">{['Tech', 'Outdoors', 'Design', 'Arts', 'Gaming'].map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
-                  <div className="space-y-1.5"><label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1">Privacy</label><div className="flex bg-slate-100 p-1 rounded-xl"><button type="button" onClick={() => setCreateIsPrivate(false)} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${!createIsPrivate ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Public</button><button type="button" onClick={() => setCreateIsPrivate(true)} className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${createIsPrivate ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Private</button></div></div>
+        {isChatSettingsOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in"
+            onClick={() => setIsChatSettingsOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-[32px] p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-5"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Settings className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900">Chat Settings</h3>
+                    <p className="text-[11px] text-slate-500 font-medium">Preferences & customization</p>
+                  </div>
                 </div>
-                <button type="submit" className="w-full py-4 rounded-2xl bg-blue-500 text-white font-black text-sm shadow-xl shadow-blue-200 hover:bg-blue-600 transition mt-2">Create Community</button>
-              </form>
+                <button
+                  onClick={() => setIsChatSettingsOpen(false)}
+                  className="p-2 rounded-full hover:bg-slate-100 text-slate-400 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-2.5">
+                {/* Chat Wallpaper Option */}
+                <div
+                  onClick={() => {
+                    setIsChatSettingsOpen(false);
+                    setIsWallpaperModalOpen(true);
+                  }}
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-blue-50/60 border border-slate-200/70 hover:border-blue-200 transition cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                      <Palette className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                        Chat Wallpaper
+                      </h4>
+                      <p className="text-[10px] text-slate-500">
+                        Theme, dimming & custom wallpaper
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-bold text-blue-600 bg-blue-100/60 px-2.5 py-1 rounded-full">
+                    Customize
+                  </span>
+                </div>
+
+                {/* Privacy & Locked Chats */}
+                <div
+                  onClick={() => {
+                    setIsChatSettingsOpen(false);
+                    triggerCommunityToast(`${lockedChatUserIds?.length || 0} protected conversations`);
+                  }}
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Privacy & Chat Lock</h4>
+                      <p className="text-[10px] text-slate-500">
+                        {(lockedChatUserIds?.length || 0) > 0 ? `${lockedChatUserIds?.length} locked chats` : 'No locked chats'}
+                      </p>
+                    </div>
+                  </div>
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                </div>
+
+                {/* Notification Alerts */}
+                <div
+                  onClick={() => {
+                    triggerCommunityToast('Notification alerts are enabled 🔔');
+                  }}
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                      <Bell className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Notification Alerts</h4>
+                      <p className="text-[10px] text-slate-500">Message tones & vibration</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">Active</span>
+                </div>
+
+                {/* Clear Cache */}
+                <div
+                  onClick={() => {
+                    triggerCommunityToast('Temporary chat cache cleared! ⚡');
+                  }}
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/70 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-500 text-white flex items-center justify-center shadow-xs">
+                      <RefreshCw className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">Clear Media Cache</h4>
+                      <p className="text-[10px] text-slate-500">Free up local device memory</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500">0 MB</span>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  onClick={() => setIsChatSettingsOpen(false)}
+                  className="w-full py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
+      {/* Global / Chat Wallpaper Modal */}
+      <ChatWallpaperModal
+        isOpen={isWallpaperModalOpen}
+        onClose={() => setIsWallpaperModalOpen(false)}
+        currentSettings={globalWallpaper}
+        participantName="All Chats"
+        onSaveWallpaper={(s) => {
+          setGlobalWallpaper(s);
+          try {
+            localStorage.setItem('funshann_global_chat_wallpaper', JSON.stringify(s));
+          } catch {}
+          triggerCommunityToast('Chat wallpaper updated successfully! 🎨', 'success');
+        }}
+        onShowToast={onShowToast}
+      />
+
       <AnimatePresence>
         {joinRequestModalCommunity && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-[32px] p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
-              <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center"><Lock className="w-5 h-5" /></div><div><h3 className="text-base font-black text-slate-800 leading-tight">Private Community</h3><p className="text-xs text-slate-500">Request access to join</p></div></div>
+              <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center"><Lock className="w-5 h-5" /></div><div><h3 className="text-base font-black text-slate-800 leading-tight">Private Group</h3><p className="text-xs text-slate-500">Request access to join this group</p></div></div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100"><h4 className="text-sm font-bold text-slate-800 mb-1">{joinRequestModalCommunity.name}</h4><p className="text-[11px] text-slate-500 leading-relaxed">{joinRequestModalCommunity.description}</p></div>
               <textarea value={joinRequestNote} onChange={(e) => setJoinRequestNote(e.target.value)} placeholder="Say something about why you'd like to join..." className="w-full h-24 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none font-medium" />
-              <div className="flex items-center gap-3 pt-2"><button onClick={() => setJoinRequestModalCommunity(null)} className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition">Cancel</button><button onClick={handleSendJoinRequest} className="flex-1 py-3 rounded-2xl bg-blue-500 text-white text-xs font-bold shadow-lg hover:bg-blue-600 transition">Send Request</button></div>
+              <div className="flex items-center gap-3 pt-2"><button onClick={() => setJoinRequestModalCommunity(null)} className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition cursor-pointer">Cancel</button><button onClick={handleSendJoinRequest} className="flex-1 py-3 rounded-2xl bg-blue-500 text-white text-xs font-bold shadow-lg hover:bg-blue-600 transition cursor-pointer">Send Request</button></div>
             </motion.div>
           </div>
         )}
@@ -1860,7 +2138,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       <AnimatePresence>
         {localToast && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-slate-900 text-white text-xs font-bold shadow-2xl flex items-center gap-3 border border-white/10"><Sparkles className="w-4 h-4 text-blue-400" /><span>{localToast.message}</span><button onClick={() => setLocalToast(null)} className="p-1 hover:text-blue-400 transition"><X className="w-4 h-4" /></button></motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-slate-900 text-white text-xs font-bold shadow-2xl flex items-center gap-3 border border-white/10"><Sparkles className="w-4 h-4 text-blue-400" /><span>{localToast.message}</span><button onClick={() => setLocalToast(null)} className="p-1 hover:text-blue-400 transition cursor-pointer"><X className="w-4 h-4" /></button></motion.div>
         )}
       </AnimatePresence>
     </div>
