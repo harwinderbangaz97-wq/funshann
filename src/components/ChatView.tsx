@@ -65,6 +65,7 @@ import {
   doc,
   addDoc,
   setDoc,
+  updateDoc,
   query,
   orderBy,
   onSnapshot,
@@ -981,9 +982,32 @@ export const ChatView: React.FC<ChatViewProps> = ({
       clearLocalTypingStatus();
       const imgs = [...attachedImages];
       const primaryImg = imgs.length > 0 ? imgs[0] : undefined;
+      const textToSend = inputText.trim();
+
+      // OPTIMISTIC UI UPDATE: Immediately render message locally with 0ms perceived latency
+      const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const optimisticMsg: Message = {
+        id: optimisticId,
+        text: textToSend,
+        senderId: currentUserId,
+        receiverId: recipientId,
+        createdAt: Date.now(),
+        timestamp: format12HourTime(Date.now()),
+        imageUrl: primaryImg,
+        images: imgs.length > 0 ? imgs : undefined,
+        mediaUrls: imgs.length > 0 ? imgs : undefined,
+        isRead: false,
+        reactions: [],
+        isDelivered: false,
+      };
+
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setInputText('');
+      setAttachedImages([]);
+
       onSendMessage(
         recipientId,
-        inputText.trim(),
+        textToSend,
         primaryImg,
         undefined,
         'normal',
@@ -992,8 +1016,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
         false,
         imgs.length > 0 ? imgs : undefined
       );
-      setInputText('');
-      setAttachedImages([]);
     }
   };
 
@@ -1012,44 +1034,64 @@ export const ChatView: React.FC<ChatViewProps> = ({
       orderBy('createdAt', 'desc'),
       limit(messageLimit)
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      // Determine if more history exists beyond current limit
-      if (snapshot.docs.length < messageLimit) {
-        setHasMoreOlder(false);
-      } else {
-        setHasMoreOlder(true);
-      }
+    const unsubscribe = onSnapshot(
+      q,
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        // Determine if more history exists beyond current limit
+        if (snapshot.docs.length < messageLimit) {
+          setHasMoreOlder(false);
+        } else {
+          setHasMoreOlder(true);
+        }
 
-      const msgs: Message[] = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data({ serverTimestamps: 'estimate' });
-        const createdAtMs = parseTimestampToMs(data.createdAt || data.timestamp || docSnap.id);
-        const images = Array.isArray(data.images)
-          ? data.images
-          : (Array.isArray(data.mediaUrls)
-            ? data.mediaUrls
-            : (data.imageUrl ? [data.imageUrl] : []));
+        const msgs: Message[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data({ serverTimestamps: 'estimate' });
+          const createdAtMs = parseTimestampToMs(data.createdAt || data.timestamp || docSnap.id);
+          const images = Array.isArray(data.images)
+            ? data.images
+            : (Array.isArray(data.mediaUrls)
+              ? data.mediaUrls
+              : (data.imageUrl ? [data.imageUrl] : []));
 
-        return {
-          id: docSnap.id,
-          text: typeof data.text === 'string' ? data.text : '',
-          senderId: data.senderId || '',
-          receiverId: data.receiverId || '',
-          createdAt: createdAtMs,
-          timestamp: format12HourTime(createdAtMs),
-          imageUrl: data.imageUrl || (images.length > 0 ? images[0] : undefined),
-          images: images.length > 0 ? images : undefined,
-          mediaUrls: images.length > 0 ? images : undefined,
-          voiceNote: data.voiceNote,
-          isRead: Boolean(data.isRead),
-          reactions: Array.isArray(data.reactions) ? data.reactions : [],
-          isDelivered: !snapshot.metadata.hasPendingWrites,
-          isForwarded: Boolean(data.isForwarded),
-          forwardedFrom: data.forwardedFrom,
-        } as Message;
-      }).reverse(); // Ascending chronological order
+          return {
+            id: docSnap.id,
+            text: typeof data.text === 'string' ? data.text : '',
+            senderId: data.senderId || '',
+            receiverId: data.receiverId || '',
+            createdAt: createdAtMs,
+            timestamp: format12HourTime(createdAtMs),
+            imageUrl: data.imageUrl || (images.length > 0 ? images[0] : undefined),
+            images: images.length > 0 ? images : undefined,
+            mediaUrls: images.length > 0 ? images : undefined,
+            voiceNote: data.voiceNote,
+            isRead: Boolean(data.isRead),
+            reactions: Array.isArray(data.reactions) ? data.reactions : [],
+            isDelivered: !snapshot.metadata.hasPendingWrites,
+            isForwarded: Boolean(data.isForwarded),
+            forwardedFrom: data.forwardedFrom,
+          } as Message;
+        }).reverse(); // Ascending chronological order
 
-      setMessages(msgs);
-    }, (error) => console.warn('Snapshot error:', error));
+        // Deduplicate incoming messages with any pending optimistic messages
+        setMessages((prev) => {
+          const confirmedIds = new Set(msgs.map((m) => m.id));
+          const pendingOptimistic = prev.filter(
+            (m) =>
+              m.id.startsWith('opt_') &&
+              !confirmedIds.has(m.id) &&
+              !msgs.some(
+                (rm) =>
+                  rm.senderId === m.senderId &&
+                  ((m.text && rm.text === m.text) || (m.voiceNote && rm.voiceNote)) &&
+                  Math.abs((rm.createdAt || 0) - (m.createdAt || 0)) < 15000
+              )
+          );
+          return [...msgs, ...pendingOptimistic];
+        });
+      },
+      (error) => console.warn('Snapshot error:', error)
+    );
     return () => unsubscribe();
   }, [chatId, messageLimit]);
 
@@ -1160,14 +1202,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
   useEffect(() => {
     if (activeThread && chatId) {
       const myUid = auth.currentUser?.uid || currentUserId;
-      activeThread.messages.forEach((m) => {
-        if (m.receiverId === myUid && !m.isRead) {
+      // Mark incoming unread messages as read in Firestore
+      messages.forEach((m) => {
+        if (m.senderId !== myUid && !m.isRead) {
           markMessageAsReadInFirestore(chatId, m.id).catch(console.warn);
           if (onMarkMessageSeen) onMarkMessageSeen(activeThread.id, m.id);
         }
       });
+      if (Array.isArray(activeThread.messages)) {
+        activeThread.messages.forEach((m) => {
+          if (m.senderId !== myUid && !m.isRead) {
+            markMessageAsReadInFirestore(chatId, m.id).catch(console.warn);
+            if (onMarkMessageSeen) onMarkMessageSeen(activeThread.id, m.id);
+          }
+        });
+      }
+      // Also mark parent chat room document as read if last message was from the other participant
+      if (activeThread.lastMessage && !activeThread.lastMessage.isRead && activeThread.lastMessage.senderId !== myUid) {
+        const chatRoomRef = doc(db, 'chats', chatId);
+        updateDoc(chatRoomRef, {
+          'lastMessage.isRead': true,
+          unreadCount: 0,
+        }).catch(() => {});
+      }
     }
-  }, [activeThread?.id, activeThread?.messages, currentUserId, chatId, onMarkMessageSeen]);
+  }, [activeThread?.id, messages, currentUserId, chatId, onMarkMessageSeen]);
 
   const handleStartRecording = async () => {
     const hasMicPermission = await requestPermission('microphone', 'Voice Messages');
@@ -1784,24 +1843,70 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <p className="text-sm font-bold text-slate-600">No conversations yet</p>
                   </div>
                 ) : (
-                  threads.filter(t => !searchQuery || (t.isGroup ? t.groupName : t.participant?.name)?.toLowerCase().includes(searchQuery.toLowerCase())).map((thread) => (
-                    <motion.div key={thread.id} whileTap={{ scale: 0.98 }} onClick={() => onSelectThread(thread.id)} className="flex items-center gap-4 p-4 rounded-3xl hover:bg-white hover:shadow-md transition cursor-pointer border border-transparent hover:border-slate-100 group">
-                      <div className="relative flex-shrink-0">
-                        <img src={thread.isGroup ? (thread.groupAvatar || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80') : (thread.participant?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')} alt={thread.isGroup ? thread.groupName : thread.participant?.name} className="w-14 h-14 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform" />
-                        {!thread.isGroup && thread.participant?.isOnline && <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <h3 className="text-sm font-bold text-slate-800 truncate pr-2">{thread.isGroup ? thread.groupName : (thread.participant?.name || 'Contact')}</h3>
-                          <span className="text-[10px] font-semibold text-slate-400">{thread.lastMessage.timestamp}</span>
+                  threads.filter(t => !searchQuery || (t.isGroup ? t.groupName : t.participant?.name)?.toLowerCase().includes(searchQuery.toLowerCase())).map((thread) => {
+                    const isThreadUnread = Boolean(
+                      (thread.unreadCount && thread.unreadCount > 0) ||
+                      (thread.lastMessage && !thread.lastMessage.isRead && thread.lastMessage.senderId !== currentUserId)
+                    );
+                    return (
+                      <motion.div
+                        key={thread.id}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => onSelectThread(thread.id)}
+                        className={`flex items-center gap-4 p-4 rounded-3xl transition cursor-pointer border group ${
+                          isThreadUnread
+                            ? 'bg-blue-50/40 border-blue-100 hover:bg-white hover:shadow-md'
+                            : 'hover:bg-white hover:shadow-md border-transparent hover:border-slate-100'
+                        }`}
+                      >
+                        <div className="relative flex-shrink-0">
+                          <img
+                            src={thread.isGroup ? (thread.groupAvatar || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=150&auto=format&fit=crop&q=80') : (thread.participant?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80')}
+                            alt={thread.isGroup ? thread.groupName : thread.participant?.name}
+                            className="w-14 h-14 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform"
+                          />
+                          {!thread.isGroup && thread.participant?.isOnline && (
+                            <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
+                          )}
+                          {/* Distinct unread indicator dot on avatar */}
+                          {isThreadUnread && (
+                            <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-white rounded-full shadow-xs animate-pulse pointer-events-none" />
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <p className={`text-xs truncate pr-4 ${thread.unreadCount > 0 ? 'text-blue-600 font-bold' : 'text-slate-500 font-medium'}`}>{thread.lastMessage.text || (thread.lastMessage.isVoice ? 'Voice message' : 'Sent an attachment')}</p>
-                          {thread.unreadCount > 0 && <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md shadow-blue-200">{thread.unreadCount}</span>}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                              <h3 className={`text-sm font-bold truncate ${isThreadUnread ? 'text-slate-900' : 'text-slate-800'}`}>
+                                {thread.isGroup ? thread.groupName : (thread.participant?.name || 'Contact')}
+                              </h3>
+                              {/* Distinct blue/red unread dot indicator next to individual chat item */}
+                              {isThreadUnread && (
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-xs flex-shrink-0 animate-pulse"
+                                  title="Unread messages"
+                                />
+                              )}
+                            </div>
+                            <span className={`text-[10px] font-semibold flex-shrink-0 ${isThreadUnread ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>
+                              {thread.lastMessage.timestamp}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className={`text-xs truncate pr-4 ${isThreadUnread ? 'text-slate-900 font-bold' : 'text-slate-500 font-medium'}`}>
+                              {thread.lastMessage.text || (thread.lastMessage.isVoice ? 'Voice message' : 'Sent an attachment')}
+                            </p>
+                            {thread.unreadCount > 0 ? (
+                              <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md shadow-red-200 flex-shrink-0">
+                                {thread.unreadCount > 99 ? '99+' : thread.unreadCount}
+                              </span>
+                            ) : isThreadUnread ? (
+                              <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-xs flex-shrink-0 animate-pulse" />
+                            ) : null}
+                          </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))
+                      </motion.div>
+                    );
+                  })
                 )}
               </div>
             </div>

@@ -143,7 +143,9 @@ export const addChatMessageToFirestore = async (
     text,
     senderId,
     receiverId,
+    chatId,
     createdAt: serverTimestamp(),
+    timestamp: serverTimestamp(),
     isRead: false,
     reactions: [],
   };

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Home, Search, Plus, MessageCircle, User as UserIcon } from 'lucide-react';
 import { motion } from 'motion/react';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
+import { db, auth } from '../services/firebase';
 import { TabType } from '../types';
 import { useTranslation } from '../context/LanguageContext';
 
@@ -16,6 +18,53 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   unreadChatCount = 0,
 }) => {
   const { t } = useTranslation();
+  const [snapshotUnreadChatCount, setSnapshotUnreadChatCount] = useState<number | null>(null);
+
+  // Real-time Firestore onSnapshot listener to compute total unread messages across active user chats
+  useEffect(() => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
+
+    try {
+      const chatsRef = collection(db, 'chats');
+      const q = query(
+        chatsRef,
+        where('participantIds', 'array-contains', currentUid),
+        limit(50)
+      );
+
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          let totalUnread = 0;
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            const lastMsg = data.lastMessage;
+            const isUnread =
+              data.unread === true ||
+              (lastMsg && lastMsg.isRead === false && lastMsg.senderId !== currentUid) ||
+              (Array.isArray(data.readBy) && !data.readBy.includes(currentUid) && lastMsg && lastMsg.senderId !== currentUid);
+
+            if (isUnread) {
+              const count = typeof data.unreadCount === 'number' && data.unreadCount > 0 ? data.unreadCount : 1;
+              totalUnread += count;
+            }
+          });
+          setSnapshotUnreadChatCount(totalUnread);
+        },
+        (error) => {
+          console.warn('BottomNavigation chat onSnapshot notice:', error);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn('BottomNavigation chat subscription error:', err);
+    }
+  }, []);
+
+  const effectiveUnreadChatCount =
+    snapshotUnreadChatCount !== null ? snapshotUnreadChatCount : unreadChatCount;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none pb-3 pt-1.5 px-3.5">
@@ -120,8 +169,13 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                 activeTab === 'chat' ? 'stroke-[2.5] scale-105' : ''
               }`}
             />
-            {unreadChatCount > 0 && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[#5B9DFF] ring-2 ring-white pointer-events-none" />
+            {effectiveUnreadChatCount > 0 && (
+              <span
+                id="bottom-nav-unread-chat-badge"
+                className="absolute -top-1 -right-1 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full shadow-md ring-2 ring-white animate-pulse pointer-events-none"
+              >
+                {effectiveUnreadChatCount > 99 ? '99+' : effectiveUnreadChatCount}
+              </span>
             )}
             {activeTab === 'chat' && (
               <motion.span

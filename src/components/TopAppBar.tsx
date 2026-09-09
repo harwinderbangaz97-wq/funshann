@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { motion } from 'motion/react';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
+import { db, auth } from '../services/firebase';
 import { useTranslation } from '../context/LanguageContext';
 
 interface TopAppBarProps {
@@ -17,6 +19,45 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
   onLogoClick,
 }) => {
   const { t } = useTranslation();
+  const [snapshotUnreadCount, setSnapshotUnreadCount] = useState<number | null>(null);
+
+  // Subscribe to the user's unread notifications collection in real-time via onSnapshot
+  useEffect(() => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
+
+    try {
+      const notifsRef = collection(db, 'notifications');
+      const q = query(
+        notifsRef,
+        where('targetUserId', '==', currentUid),
+        limit(50)
+      );
+
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          let count = 0;
+          snapshot.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (data && !data.read) {
+              count++;
+            }
+          });
+          setSnapshotUnreadCount(count);
+        },
+        (error) => {
+          console.warn('TopAppBar notifications onSnapshot notice:', error);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn('TopAppBar notifications subscription error:', err);
+    }
+  }, []);
+
+  const effectiveUnreadCount = snapshotUnreadCount !== null ? snapshotUnreadCount : unreadNotificationsCount;
 
   return (
     <header className="sticky top-0 z-30 w-full px-5 py-3.5 bg-gradient-to-b from-[#f4f7fb]/95 via-[#f4f7fb]/90 to-transparent backdrop-blur-md transition-all">
@@ -46,7 +87,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           </div>
         </button>
 
-        {/* Right: Raised 3D Notification Icon */}
+        {/* Right: Raised 3D Notification Icon with visible red badge */}
         <div className="flex items-center gap-3">
           {/* Notification Button */}
           <motion.button
@@ -59,9 +100,12 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
             className="relative w-12 h-12 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition-colors cursor-pointer"
           >
             <Bell className="w-6 h-6 transition-transform" />
-            {unreadNotificationsCount > 0 && (
-              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-[11px] font-bold text-white bg-[#5B9DFF] rounded-full shadow-md animate-pulse">
-                {unreadNotificationsCount}
+            {effectiveUnreadCount > 0 && (
+              <span
+                id="top-unread-notifications-badge"
+                className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-[20px] px-1 text-[11px] font-bold text-white bg-red-500 rounded-full shadow-md ring-2 ring-white animate-pulse pointer-events-none"
+              >
+                {effectiveUnreadCount > 99 ? '99+' : effectiveUnreadCount}
               </span>
             )}
           </motion.button>
