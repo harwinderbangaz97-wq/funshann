@@ -1,6 +1,6 @@
 {
   "name": "Funshann",
-  "description": "Connect and share on Funshann✨",
+  "description": "Funshann is a social platform to connect with people, share posts, discover content and chat with your community.",
   "requestFramePermissions": ["camera", "microphone", "geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

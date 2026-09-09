@@ -26,8 +26,36 @@ const standaloneHtml = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Funshann</title>
-  <meta name="description" content="Funshann - Full-screen native Android social network." />
+  <title>Funshann – Connect, Share &amp; Discover</title>
+  <meta name="description" content="Funshann is a social platform to connect with people, share posts, discover content and chat with your community." />
+  <link rel="canonical" href="https://funshann.blogspot.com/" />
+
+  <!-- Favicon / Brand Logo -->
+  <link rel="icon" type="image/x-icon" href="https://funshann.blogspot.com/favicon.ico" />
+  <link rel="shortcut icon" href="https://funshann.blogspot.com/favicon.ico" />
+  <link rel="apple-touch-icon" href="https://harwinderbangaz97-wq.github.io/funshann/logo.png" />
+
+  <!-- Open Graph / Facebook / WhatsApp -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://funshann.blogspot.com/" />
+  <meta property="og:title" content="Funshann – Connect, Share &amp; Discover" />
+  <meta property="og:description" content="Funshann is a social platform to connect with people, share posts, discover content and chat with your community." />
+  <meta property="og:image" content="https://harwinderbangaz97-wq.github.io/funshann/logo.png" />
+  <meta property="og:image:secure_url" content="https://harwinderbangaz97-wq.github.io/funshann/logo.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt" content="Funshann – Connect, Share &amp; Discover" />
+  <meta property="og:site_name" content="Funshann" />
+
+  <!-- Twitter / X Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:url" content="https://funshann.blogspot.com/" />
+  <meta name="twitter:title" content="Funshann – Connect, Share &amp; Discover" />
+  <meta name="twitter:description" content="Funshann is a social platform to connect with people, share posts, discover content and chat with your community." />
+  <meta name="twitter:image" content="https://harwinderbangaz97-wq.github.io/funshann/logo.png" />
+  <meta name="twitter:image:alt" content="Funshann – Connect, Share &amp; Discover" />
+
   <meta name="theme-color" content="#0F172A" />
   
   <!-- Google Fonts -->
