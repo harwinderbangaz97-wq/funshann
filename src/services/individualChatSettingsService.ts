@@ -19,6 +19,11 @@ export interface UserChatSettings {
   soundEnabled: boolean;
   wallpaper?: ChatWallpaperSettings;
   mediaVisibility?: MediaVisibilitySetting;
+  isMessagesDisabled?: boolean;
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: string; // e.g. "22:00"
+  quietHoursEnd?: string; // e.g. "07:00"
+  vanishMode?: boolean;
 }
 
 const STORAGE_KEY = 'funshann_user_chat_settings_map';
@@ -77,6 +82,11 @@ export const getIndividualChatSettings = (userId: string): UserChatSettings => {
           soundEnabled: item.soundEnabled !== undefined ? item.soundEnabled : true,
           wallpaper: item.wallpaper,
           mediaVisibility: item.mediaVisibility || 'default',
+          isMessagesDisabled: !!item.isMessagesDisabled,
+          quietHoursEnabled: !!item.quietHoursEnabled,
+          quietHoursStart: item.quietHoursStart || '22:00',
+          quietHoursEnd: item.quietHoursEnd || '07:00',
+          vanishMode: !!item.vanishMode,
         };
       }
     }
@@ -90,6 +100,11 @@ export const getIndividualChatSettings = (userId: string): UserChatSettings => {
     muteUntil: null,
     soundEnabled: true,
     mediaVisibility: 'default',
+    isMessagesDisabled: false,
+    quietHoursEnabled: false,
+    quietHoursStart: '22:00',
+    quietHoursEnd: '07:00',
+    vanishMode: false,
   };
 };
 
@@ -107,6 +122,11 @@ export const saveIndividualChatSettings = (
       muteUntil: null,
       soundEnabled: true,
       mediaVisibility: 'default',
+      isMessagesDisabled: false,
+      quietHoursEnabled: false,
+      quietHoursStart: '22:00',
+      quietHoursEnd: '07:00',
+      vanishMode: false,
     };
 
     let isMuted = settings.isMuted !== undefined ? settings.isMuted : current.isMuted;
@@ -150,6 +170,13 @@ export const saveIndividualChatSettings = (
       isMuted,
       muteDuration,
       muteUntil,
+      wallpaper,
+      mediaVisibility,
+      isMessagesDisabled: settings.isMessagesDisabled !== undefined ? settings.isMessagesDisabled : current.isMessagesDisabled,
+      quietHoursEnabled: settings.quietHoursEnabled !== undefined ? settings.quietHoursEnabled : current.quietHoursEnabled,
+      quietHoursStart: settings.quietHoursStart !== undefined ? settings.quietHoursStart : (current.quietHoursStart || '22:00'),
+      quietHoursEnd: settings.quietHoursEnd !== undefined ? settings.quietHoursEnd : (current.quietHoursEnd || '07:00'),
+      vanishMode: settings.vanishMode !== undefined ? settings.vanishMode : current.vanishMode,
     };
     map[userId] = updated;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
@@ -162,6 +189,56 @@ export const saveIndividualChatSettings = (
       muteDuration: settings.muteDuration || 'off',
       muteUntil: settings.muteUntil || null,
       soundEnabled: settings.soundEnabled ?? true,
+      mediaVisibility: settings.mediaVisibility || 'default',
+      isMessagesDisabled: settings.isMessagesDisabled || false,
+      quietHoursEnabled: settings.quietHoursEnabled || false,
+      quietHoursStart: settings.quietHoursStart || '22:00',
+      quietHoursEnd: settings.quietHoursEnd || '07:00',
+      vanishMode: settings.vanishMode || false,
     };
   }
 };
+
+/**
+ * Checks whether the current time falls inside the user's scheduled quiet hours
+ */
+export const isChatInQuietHours = (userId?: string): { inQuietHours: boolean; start: string; end: string } => {
+  if (!userId) return { inQuietHours: false, start: '22:00', end: '07:00' };
+  const s = getIndividualChatSettings(userId);
+  if (!s.quietHoursEnabled) return { inQuietHours: false, start: s.quietHoursStart || '22:00', end: s.quietHoursEnd || '07:00' };
+
+  const startStr = s.quietHoursStart || '22:00';
+  const endStr = s.quietHoursEnd || '07:00';
+
+  const [startH, startM] = startStr.split(':').map(Number);
+  const [endH, endM] = endStr.split(':').map(Number);
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const startMinutes = (startH || 0) * 60 + (startM || 0);
+  const endMinutes = (endH || 0) * 60 + (endM || 0);
+
+  let inQuietHours = false;
+  if (startMinutes <= endMinutes) {
+    // Standard range during the same day e.g. 09:00 to 17:00
+    inQuietHours = currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  } else {
+    // Overnight range e.g. 22:00 to 07:00
+    inQuietHours = currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+
+  return { inQuietHours, start: startStr, end: endStr };
+};
+
+export const isChatMessagesDisabled = (userId?: string): boolean => {
+  if (!userId) return false;
+  const s = getIndividualChatSettings(userId);
+  return !!s.isMessagesDisabled;
+};
+
+export const isVanishModeActive = (userId?: string): boolean => {
+  if (!userId) return false;
+  const s = getIndividualChatSettings(userId);
+  return !!s.vanishMode;
+};
+

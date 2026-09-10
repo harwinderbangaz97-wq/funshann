@@ -59,7 +59,13 @@ import { useNavigation } from '../context/NavigationContext';
 import { usePermissionAndMedia } from '../context/PermissionAndMediaContext';
 import { audioRecorder } from '../services/audioRecorderService';
 import { validateMessageDeletion, getMessagePrivacySettings } from '../data/messagePrivacyService';
-import { getIndividualChatSettings, saveIndividualChatSettings } from '../services/individualChatSettingsService';
+import {
+  getIndividualChatSettings,
+  saveIndividualChatSettings,
+  isChatInQuietHours,
+  isChatMessagesDisabled,
+  isVanishModeActive,
+} from '../services/individualChatSettingsService';
 import {
   collection,
   doc,
@@ -79,6 +85,7 @@ import {
   subscribeToChatMessages,
   markMessageAsReadInFirestore,
   deleteChatMessageFromFirestore,
+  deleteVanishMessagesFromFirestore,
   toggleMessageReactionInFirestore,
   addChatMessageToFirestore,
   createOrEnsureChatDocument,
@@ -343,13 +350,13 @@ const MessageBubbleItem: React.FC<{
         }`}
       >
         {!isMyMessage && msg.senderName && (
-          <span className="text-[10.5px] font-bold text-[#5B9DFF] mb-0.5 block">
+          <span className="text-[10.5px] font-bold text-[#9333EA] mb-0.5 block">
             {msg.senderName}
           </span>
         )}
         {msg.isForwarded && (
-          <div className={`flex items-center gap-1 mb-0.5 text-[10.5px] font-medium italic select-none ${isMyMessage ? 'text-blue-100' : 'text-slate-500'}`}>
-            <Forward className={`w-3 h-3 ${isMyMessage ? 'text-blue-200' : 'text-slate-400'}`} />
+          <div className={`flex items-center gap-1 mb-0.5 text-[10.5px] font-medium italic select-none ${isMyMessage ? 'text-purple-100' : 'text-slate-500'}`}>
+            <Forward className={`w-3 h-3 ${isMyMessage ? 'text-purple-200' : 'text-slate-400'}`} />
             <span>Forwarded{msg.forwardedFrom ? ` from ${msg.forwardedFrom}` : ''}</span>
           </div>
         )}
@@ -360,16 +367,16 @@ const MessageBubbleItem: React.FC<{
           <p className="font-normal whitespace-pre-wrap break-words">{msg.text}</p>
         )}
 
-        <div className={`flex items-center justify-end gap-1 mt-0.5 text-[9.5px] font-medium select-none ${isMyMessage ? 'text-blue-100/90' : 'text-slate-400'}`}>
+        <div className={`flex items-center justify-end gap-1 mt-0.5 text-[9.5px] font-medium select-none ${isMyMessage ? 'text-purple-100/90' : 'text-slate-400'}`}>
           <span>{format12HourTime(msg.createdAt || msg.timestamp)}</span>
           {isMyMessage && (
             <span title={msg.isRead ? 'Read' : (msg.isDelivered ? 'Delivered' : 'Sent')}>
               {msg.isRead ? (
                 <CheckCheck className="w-3 h-3 text-white" />
               ) : msg.isDelivered ? (
-                <CheckCheck className="w-3 h-3 text-blue-200" />
+                <CheckCheck className="w-3 h-3 text-purple-200" />
               ) : (
-                <Check className="w-3 h-3 text-blue-200" />
+                <Check className="w-3 h-3 text-purple-200" />
               )}
             </span>
           )}
@@ -402,7 +409,7 @@ const MessageBubbleItem: React.FC<{
                 }}
                 className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shadow-xs transition cursor-pointer backdrop-blur-md ${
                   hasUserReacted
-                    ? 'bg-blue-50 border border-[#5B9DFF] text-[#1d4ed8] shadow-xs'
+                    ? 'bg-purple-50 border border-[#9333EA] text-purple-700 shadow-xs'
                     : 'bg-white/95 border border-slate-200/90 text-slate-700 hover:bg-slate-50'
                 }`}
               >
@@ -611,7 +618,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [createDesc, setCreateDesc] = useState('');
   const [createCategory, setCreateCategory] = useState('Tech');
   const [createIsPrivate, setCreateIsPrivate] = useState(false);
-  const [createGradient, setCreateGradient] = useState('from-indigo-500 to-blue-600');
+  const [createGradient, setCreateGradient] = useState('from-purple-600 to-indigo-600');
 
   const [communities, setCommunities] = useState<Community[]>([
     {
@@ -622,10 +629,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       members: '12.5k',
       isPrivate: false,
       category: 'Tech',
-      gradient: 'from-indigo-500 to-blue-600',
-      bgLight: 'bg-indigo-50',
-      borderLight: 'border-indigo-200/60',
-      badgeColor: 'bg-indigo-100 text-indigo-700',
+      gradient: 'from-purple-600 to-indigo-600',
+      bgLight: 'bg-purple-50',
+      borderLight: 'border-purple-200/60',
+      badgeColor: 'bg-purple-100 text-purple-700',
     },
     {
       id: 'c2',
@@ -687,10 +694,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       members: '8.9k',
       isPrivate: false,
       category: 'Tech',
-      gradient: 'from-cyan-500 to-blue-600',
-      bgLight: 'bg-cyan-50',
-      borderLight: 'border-cyan-200/60',
-      badgeColor: 'bg-cyan-100 text-cyan-700',
+      gradient: 'from-fuchsia-500 to-purple-600',
+      bgLight: 'bg-fuchsia-50',
+      borderLight: 'border-fuchsia-200/60',
+      badgeColor: 'bg-fuchsia-100 text-fuchsia-700',
     },
   ]);
 
@@ -787,10 +794,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       members: `${memberIds.length + 1} Members`,
       isPrivate,
       category,
-      gradient: 'from-blue-600 to-indigo-600',
-      bgLight: 'bg-blue-50',
-      borderLight: 'border-blue-200/60',
-      badgeColor: 'bg-blue-100 text-blue-700',
+      gradient: 'from-purple-600 to-indigo-600',
+      bgLight: 'bg-purple-50',
+      borderLight: 'border-purple-200/60',
+      badgeColor: 'bg-purple-100 text-[#9333EA]',
       avatarUrl: avatar,
     };
     setCommunities((prev) => [newGroup, ...prev]);
@@ -891,6 +898,62 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [activeTypingUserIds, setActiveTypingUserIds] = useState<string[]>([]);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCurrentlyTypingRef = useRef<boolean>(false);
+  const [isVanishMode, setIsVanishMode] = useState(false);
+
+  // Sync vanish mode when recipient changes
+  useEffect(() => {
+    if (recipientId) {
+      setIsVanishMode(isVanishModeActive(recipientId));
+    } else {
+      setIsVanishMode(false);
+    }
+  }, [recipientId]);
+
+  // Privacy restriction calculation for the current thread
+  const privacyRestriction = useMemo(() => {
+    if (isGroupThread || !resolvedParticipant) return null;
+
+    // Check user messaging privacy
+    const userPrivacy = resolvedParticipant.messagingPrivacy || 'everyone';
+    if (userPrivacy === 'disabled') {
+      return {
+        restricted: true,
+        reason: 'disabled',
+        message: `@${resolvedParticipant.username || resolvedParticipant.name} has disabled direct messages.`,
+      };
+    }
+
+    if (userPrivacy === 'followers_only') {
+      const isFollowing =
+        currentUser.following?.includes(resolvedParticipant.id) ||
+        (resolvedParticipant.uid && currentUser.following?.includes(resolvedParticipant.uid)) ||
+        resolvedParticipant.isFollowing;
+      if (!isFollowing) {
+        return {
+          restricted: true,
+          reason: 'followers_only',
+          message: `@${resolvedParticipant.username || resolvedParticipant.name} only accepts direct messages from their followers.`,
+        };
+      }
+    }
+
+    // Check individual chat disabled setting
+    if (recipientId && isChatMessagesDisabled(recipientId)) {
+      return {
+        restricted: true,
+        reason: 'chat_disabled',
+        message: `Messages with ${resolvedParticipant.name} are disabled in Chat Settings.`,
+      };
+    }
+
+    return null;
+  }, [isGroupThread, resolvedParticipant, recipientId, currentUser]);
+
+  // Check quiet hours
+  const quietHoursStatus = useMemo(() => {
+    if (!recipientId || isGroupThread) return { inQuietHours: false, start: '', end: '' };
+    return isChatInQuietHours(recipientId);
+  }, [recipientId, isGroupThread]);
 
   const startYRef = useRef<number>(0);
   const isTouchActiveRef = useRef<boolean>(false);
@@ -978,6 +1041,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const handleSendMessage = () => {
+    if (privacyRestriction?.restricted) {
+      if (onShowToast) onShowToast(privacyRestriction.message);
+      return;
+    }
+
     if (inputText.trim() || attachedImages.length > 0) {
       clearLocalTypingStatus();
       const imgs = [...attachedImages];
@@ -999,11 +1067,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
         isRead: false,
         reactions: [],
         isDelivered: false,
+        isVanish: isVanishMode,
+        autoDelete: isVanishMode ? 'seen' : undefined,
       };
 
       setMessages((prev) => [...prev, optimisticMsg]);
       setInputText('');
       setAttachedImages([]);
+
+      if (chatId) {
+        addChatMessageToFirestore(chatId, {
+          senderId: currentUserId,
+          receiverId: recipientId,
+          text: textToSend,
+          imageUrl: primaryImg,
+          images: imgs.length > 0 ? imgs : undefined,
+          isVanish: isVanishMode,
+          autoDelete: isVanishMode ? 'seen' : undefined,
+        }).catch(console.warn);
+      }
 
       onSendMessage(
         recipientId,
@@ -1013,7 +1095,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         'normal',
         false,
         undefined,
-        false,
+        true, // Already written to Firestore directly with vanish metadata
         imgs.length > 0 ? imgs : undefined
       );
     }
@@ -1340,7 +1422,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),16px)] pb-2.5 sm:px-4 sm:pt-4 sm:pb-3 bg-white/95 backdrop-blur-xl border-b border-slate-200/70 z-30 shadow-xs flex-shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
-              onClick={onBackToList}
+              onClick={() => {
+                if (isVanishMode && chatId) {
+                  deleteVanishMessagesFromFirestore(chatId);
+                }
+                onBackToList();
+              }}
               className="p-1.5 -ml-1 rounded-full hover:bg-slate-100 transition-colors text-slate-700 cursor-pointer"
               title="Back"
             >
@@ -1402,6 +1489,45 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </button>
           </div>
         </div>
+
+        {/* VANISH MODE ACTIVE BANNER */}
+        {isVanishMode && (
+          <div className="px-3.5 py-2 bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-950 text-white flex items-center justify-between shadow-md z-25 shrink-0 border-b border-purple-700/50">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-full bg-purple-500/40 border border-purple-400/60 flex items-center justify-center shrink-0">
+                <EyeOff className="w-3.5 h-3.5 text-purple-200" />
+              </div>
+              <p className="text-[11.5px] font-semibold text-purple-100 truncate">
+                <span className="font-extrabold text-white">Vanish Mode Active:</span> Ephemeral messages disappear once read or when closing chat.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (recipientId) {
+                  saveIndividualChatSettings(recipientId, { vanishMode: false });
+                  setIsVanishMode(false);
+                  if (onShowToast) onShowToast('Vanish Mode turned off');
+                }
+              }}
+              className="px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white text-[10.5px] font-bold transition shrink-0 ml-2 cursor-pointer border border-white/30"
+            >
+              Turn Off
+            </button>
+          </div>
+        )}
+
+        {/* QUIET HOURS NOTICE BANNER */}
+        {quietHoursStatus.inQuietHours && !isVanishMode && (
+          <div className="px-3.5 py-1.5 bg-indigo-50 border-b border-indigo-200/80 text-indigo-900 flex items-center justify-between text-xs z-25 shrink-0">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="text-[11.5px] font-medium">
+                🌙 Quiet Hours Active ({quietHoursStatus.start} - {quietHoursStatus.end}) • Chat is silenced
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Chat Messages Canvas with Dedicated Full-Coverage Wallpaper Layer */}
         <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
@@ -1539,7 +1665,25 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
         {/* Input Bar & Multi-Photo Attachment Previews */}
         <div className="p-2 pb-[max(env(safe-area-inset-bottom),8px)] sm:p-2.5 bg-white/95 backdrop-blur-md border-t border-slate-200/70 z-30 flex-shrink-0">
-          {attachedImages.length > 0 && !isRecordingVoice && (
+          {privacyRestriction?.restricted ? (
+            <div className="p-3 rounded-2xl neu-inset bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-slate-700">
+                <AlertTriangle className="w-4.5 h-4.5 text-amber-500 shrink-0" />
+                <p className="text-[12.5px] font-semibold leading-tight">{privacyRestriction.message}</p>
+              </div>
+              {privacyRestriction.reason === 'followers_only' && resolvedParticipant && onToggleFollow && (
+                <button
+                  type="button"
+                  onClick={() => onToggleFollow(resolvedParticipant.id)}
+                  className="px-3 py-1.5 rounded-full bg-[#9333EA] hover:bg-purple-700 text-white text-xs font-bold shrink-0 shadow-xs cursor-pointer"
+                >
+                  Follow
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {attachedImages.length > 0 && !isRecordingVoice && (
             <div className="mb-2 flex items-center gap-2 overflow-x-auto no-scrollbar py-1 px-1">
               {attachedImages.map((imgUrl, i) => (
                 <div key={i} className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-sm border border-slate-200 flex-shrink-0 bg-slate-100">
@@ -1559,7 +1703,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <button
                 type="button"
                 onClick={handlePickFromGallery}
-                className="w-16 h-16 rounded-2xl border-2 border-dashed border-slate-300 hover:border-[#5B9DFF] flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-[#5B9DFF] transition-colors flex-shrink-0 bg-slate-50 cursor-pointer"
+                className="w-16 h-16 rounded-2xl border-2 border-dashed border-slate-300 hover:border-[#9333EA] flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-[#9333EA] transition-colors flex-shrink-0 bg-slate-50 cursor-pointer"
                 title="Add more photos"
               >
                 <Plus className="w-5 h-5" />
@@ -1596,7 +1740,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <button
                 type="button"
                 onClick={handleSendVoiceNote}
-                className="w-9 h-9 rounded-full bg-[#5B9DFF] hover:bg-blue-600 text-white flex items-center justify-center shadow-sm transition cursor-pointer"
+                className="w-9 h-9 rounded-full bg-[#9333EA] hover:bg-purple-700 text-white flex items-center justify-center shadow-sm transition cursor-pointer"
                 title="Send Voice Note"
               >
                 <Send className="w-4 h-4 ml-0.5" />
@@ -1626,8 +1770,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950 text-white flex items-center justify-center shrink-0 shadow-md hover:bg-slate-900 active:scale-95 transition-all cursor-pointer group border border-slate-800"
                 title="Open Camera"
               >
-                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#5B9DFF]/40 to-transparent opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                <Camera className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-white group-hover:text-[#5B9DFF] transition-colors stroke-[2.2] relative z-10" />
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#9333EA]/40 to-transparent opacity-60 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                <Camera className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-white group-hover:text-[#9333EA] transition-colors stroke-[2.2] relative z-10" />
               </motion.button>
 
               {/* 2. Send Chat Text Input Pill */}
@@ -1651,7 +1795,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <button
                     type="button"
                     onClick={handleSendMessage}
-                    className="p-1.5 rounded-full bg-[#5B9DFF] hover:bg-blue-600 text-white transition-all shadow-xs active:scale-90 cursor-pointer"
+                    className="p-1.5 rounded-full bg-[#9333EA] hover:bg-purple-700 text-white transition-all shadow-xs active:scale-90 cursor-pointer"
                     title="Send"
                   >
                     <Send className="w-3.5 h-3.5 ml-0.5" />
@@ -1688,6 +1832,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <GalleryCardsIcon className="w-6 h-6 sm:w-6.5 sm:h-6.5 text-slate-900" />
               </button>
             </div>
+          )}
+          </>
           )}
         </div>
 
@@ -1774,6 +1920,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             onToggleLockChat={onToggleLockChat}
             onOpenWallpaper={() => setIsWallpaperModalOpen(true)}
             onShowToast={onShowToast}
+            onVanishModeChange={(active) => setIsVanishMode(active)}
           />
         )}
       </div>
@@ -1786,12 +1933,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-3">
             <button onClick={onBackToHome} className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 cursor-pointer"><ArrowLeft className="w-5 h-5" /></button>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">Chat <Sparkles className="w-5 h-5 text-blue-500" /></h1>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2.5">Chat <Sparkles className="w-5 h-5 text-[#9333EA]" /></h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setIsCreateGroupModalOpen(true)}
-              className="p-2.5 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200/60 hover:bg-blue-100 transition cursor-pointer shadow-xs active:scale-95"
+              className="p-2.5 rounded-2xl bg-purple-50 text-[#9333EA] border border-purple-200/60 hover:bg-purple-100 transition cursor-pointer shadow-xs active:scale-95"
               title="Create New Group"
             >
               <UserPlus className="w-5 h-5" />
@@ -1809,7 +1956,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <button
             onClick={() => setActiveMainTab('messages')}
             className={`flex-1 py-2 rounded-[14px] text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-              activeMainTab === 'messages' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'
+              activeMainTab === 'messages' ? 'bg-white text-[#9333EA] shadow-md' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <MessageSquare className="w-4 h-4" />Messages
@@ -1818,7 +1965,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             onClick={() => setActiveMainTab('groups')}
             className={`flex-1 py-2 rounded-[14px] text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
               activeMainTab === 'groups' || (activeMainTab as string) === 'communities'
-                ? 'bg-white text-blue-600 shadow-md'
+                ? 'bg-white text-[#9333EA] shadow-md'
                 : 'text-slate-500 hover:text-slate-700'
             }`}
           >
@@ -1832,8 +1979,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {activeMainTab === 'messages' && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-400">
               <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search messages or people..." className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200/80 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-xs font-medium" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#9333EA] transition-colors" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search messages or people..." className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200/80 rounded-2xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#9333EA]/20 shadow-xs font-medium" />
               </div>
               <div className="space-y-1 pt-2">
                 <h2 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest px-1 mb-3">All Conversations</h2>
@@ -1855,7 +2002,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         onClick={() => onSelectThread(thread.id)}
                         className={`flex items-center gap-4 p-4 rounded-3xl transition cursor-pointer border group ${
                           isThreadUnread
-                            ? 'bg-blue-50/40 border-blue-100 hover:bg-white hover:shadow-md'
+                            ? 'bg-purple-50/40 border-purple-100 hover:bg-white hover:shadow-md'
                             : 'hover:bg-white hover:shadow-md border-transparent hover:border-slate-100'
                         }`}
                       >
@@ -1879,7 +2026,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                               <h3 className={`text-sm font-bold truncate ${isThreadUnread ? 'text-slate-900' : 'text-slate-800'}`}>
                                 {thread.isGroup ? thread.groupName : (thread.participant?.name || 'Contact')}
                               </h3>
-                              {/* Distinct blue/red unread dot indicator next to individual chat item */}
+                              {/* Distinct unread dot indicator next to individual chat item */}
                               {isThreadUnread && (
                                 <span
                                   className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-xs flex-shrink-0 animate-pulse"
@@ -1887,7 +2034,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                 />
                               )}
                             </div>
-                            <span className={`text-[10px] font-semibold flex-shrink-0 ${isThreadUnread ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>
+                            <span className={`text-[10px] font-semibold flex-shrink-0 ${isThreadUnread ? 'text-[#9333EA] font-bold' : 'text-slate-400'}`}>
                               {thread.lastMessage.timestamp}
                             </span>
                           </div>
@@ -1927,7 +2074,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </div>
                 <button
                   onClick={() => setIsCreateGroupModalOpen(true)}
-                  className="p-3.5 rounded-2xl bg-blue-500 text-white shadow-md hover:bg-blue-600 transition cursor-pointer active:scale-95"
+                  className="p-3.5 rounded-2xl bg-[#9333EA] text-white shadow-md hover:bg-purple-700 transition cursor-pointer active:scale-95"
                   title="Create Group"
                 >
                   <Plus className="w-5 h-5" />
@@ -1941,7 +2088,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     onClick={() => setSelectedCommunityCategory(cat)}
                     className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex-shrink-0 cursor-pointer ${
                       selectedCommunityCategory === cat
-                        ? 'bg-blue-500 text-white shadow-md'
+                        ? 'bg-[#9333EA] text-white shadow-md'
                         : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
                     }`}
                   >
@@ -1964,7 +2111,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <div
                         key={community.id}
                         onClick={() => setSelectedChannelCommunity(community)}
-                        className="group bg-white rounded-[28px] p-5 border border-slate-100 hover:border-blue-200 hover:shadow-xl transition cursor-pointer relative overflow-hidden flex flex-col gap-4"
+                        className="group bg-white rounded-[28px] p-5 border border-slate-100 hover:border-purple-200 hover:shadow-xl transition cursor-pointer relative overflow-hidden flex flex-col gap-4"
                       >
                         <div
                           className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${community.gradient} opacity-10 rounded-bl-[100px] transition-transform group-hover:scale-110`}
@@ -1982,7 +2129,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-base font-bold text-slate-800 truncate mb-1 group-hover:text-blue-600 transition-colors">
+                            <h4 className="text-base font-bold text-slate-800 truncate mb-1 group-hover:text-[#9333EA] transition-colors">
                               {community.name}
                             </h4>
                             <p className="text-xs text-slate-500 line-clamp-2 font-medium leading-relaxed">
@@ -2028,7 +2175,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             ) : (
                               <button
                                 onClick={() => handleToggleCommunityState(community)}
-                                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-blue-500 text-white shadow-md hover:bg-blue-600 transition cursor-pointer"
+                                className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#9333EA] text-white shadow-md hover:bg-purple-700 transition cursor-pointer"
                               >
                                 Join
                               </button>
@@ -2042,7 +2189,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </div>
               <button
                 onClick={() => setIsCreateGroupModalOpen(true)}
-                className="w-full py-4 rounded-[28px] border-2 border-dashed border-slate-200 bg-white text-slate-500 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition flex items-center justify-center gap-2 font-bold text-sm shadow-xs cursor-pointer active:scale-[0.99]"
+                className="w-full py-4 rounded-[28px] border-2 border-dashed border-slate-200 bg-white text-slate-500 hover:bg-purple-50 hover:border-purple-200 hover:text-[#9333EA] transition flex items-center justify-center gap-2 font-bold text-sm shadow-xs cursor-pointer active:scale-[0.99]"
               >
                 <Plus className="w-5 h-5" />
                 <span>Create New Group</span>
@@ -2080,7 +2227,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-2xl bg-purple-50 text-[#9333EA] flex items-center justify-center">
                     <Settings className="w-5 h-5" />
                   </div>
                   <div>
@@ -2103,14 +2250,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     setIsChatSettingsOpen(false);
                     setIsWallpaperModalOpen(true);
                   }}
-                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-blue-50/60 border border-slate-200/70 hover:border-blue-200 transition cursor-pointer group"
+                  className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-purple-50/60 border border-slate-200/70 hover:border-purple-200 transition cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-xs">
                       <Palette className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                      <h4 className="text-xs font-bold text-slate-800 group-hover:text-[#9333EA] transition-colors">
                         Chat Wallpaper
                       </h4>
                       <p className="text-[10px] text-slate-500">
@@ -2118,7 +2265,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <span className="text-[11px] font-bold text-blue-600 bg-blue-100/60 px-2.5 py-1 rounded-full">
+                  <span className="text-[11px] font-bold text-[#9333EA] bg-purple-100/60 px-2.5 py-1 rounded-full">
                     Customize
                   </span>
                 </div>
@@ -2219,8 +2366,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-[32px] p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
               <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center"><Lock className="w-5 h-5" /></div><div><h3 className="text-base font-black text-slate-800 leading-tight">Private Group</h3><p className="text-xs text-slate-500">Request access to join this group</p></div></div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100"><h4 className="text-sm font-bold text-slate-800 mb-1">{joinRequestModalCommunity.name}</h4><p className="text-[11px] text-slate-500 leading-relaxed">{joinRequestModalCommunity.description}</p></div>
-              <textarea value={joinRequestNote} onChange={(e) => setJoinRequestNote(e.target.value)} placeholder="Say something about why you'd like to join..." className="w-full h-24 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none font-medium" />
-              <div className="flex items-center gap-3 pt-2"><button onClick={() => setJoinRequestModalCommunity(null)} className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition cursor-pointer">Cancel</button><button onClick={handleSendJoinRequest} className="flex-1 py-3 rounded-2xl bg-blue-500 text-white text-xs font-bold shadow-lg hover:bg-blue-600 transition cursor-pointer">Send Request</button></div>
+              <textarea value={joinRequestNote} onChange={(e) => setJoinRequestNote(e.target.value)} placeholder="Say something about why you'd like to join..." className="w-full h-24 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#9333EA]/20 resize-none font-medium" />
+              <div className="flex items-center gap-3 pt-2"><button onClick={() => setJoinRequestModalCommunity(null)} className="flex-1 py-3 rounded-2xl border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition cursor-pointer">Cancel</button><button onClick={handleSendJoinRequest} className="flex-1 py-3 rounded-2xl bg-[#9333EA] text-white text-xs font-bold shadow-lg hover:bg-purple-700 transition cursor-pointer">Send Request</button></div>
             </motion.div>
           </div>
         )}
@@ -2243,7 +2390,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       <AnimatePresence>
         {localToast && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-slate-900 text-white text-xs font-bold shadow-2xl flex items-center gap-3 border border-white/10"><Sparkles className="w-4 h-4 text-blue-400" /><span>{localToast.message}</span><button onClick={() => setLocalToast(null)} className="p-1 hover:text-blue-400 transition cursor-pointer"><X className="w-4 h-4" /></button></motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full bg-slate-900 text-white text-xs font-bold shadow-2xl flex items-center gap-3 border border-white/10"><Sparkles className="w-4 h-4 text-purple-400" /><span>{localToast.message}</span><button onClick={() => setLocalToast(null)} className="p-1 hover:text-purple-400 transition cursor-pointer"><X className="w-4 h-4" /></button></motion.div>
         )}
       </AnimatePresence>
     </div>

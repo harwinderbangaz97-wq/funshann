@@ -86,7 +86,7 @@ const ReactionPillItem: React.FC<ReactionPillItemProps> = ({
       {...handlers}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all cursor-pointer select-none ${
         isUserReacted
-          ? 'bg-blue-50 border border-blue-200 text-[#2563eb] font-bold shadow-2xs ring-1 ring-blue-300/60'
+          ? 'bg-purple-50 border border-purple-200 text-[#9333EA] font-bold shadow-2xs ring-1 ring-purple-300/60'
           : 'bg-slate-100 hover:bg-slate-200/80 border border-slate-200/60 text-slate-700 font-medium'
       }`}
       title={`${reaction.count} reaction${reaction.count === 1 ? '' : 's'} (Hold to view users)`}
@@ -190,7 +190,7 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
     onClick: () => {
       if (onReact) {
         onReact(post.id, 'like');
-      } else {
+      } else if (onLike) {
         onLike(post.id);
       }
     },
@@ -205,7 +205,9 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
       });
     },
     onClick: () => {
-      onCommentClick(post);
+      if (onCommentClick) {
+        onCommentClick(post);
+      }
     },
     delay: 500,
   });
@@ -218,7 +220,9 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
       });
     },
     onClick: () => {
-      onCommentClick(post);
+      if (onCommentClick) {
+        onCommentClick(post);
+      }
     },
     delay: 500,
   });
@@ -473,7 +477,7 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
             }}
           >
             {/* Circular profile picture */}
-            <div className="w-12 h-12 rounded-full p-[2px] bg-gradient-to-tr from-[#5B9DFF] to-blue-400 overflow-hidden flex-shrink-0 transition-transform group-hover/user:scale-105">
+            <div className="w-12 h-12 rounded-full p-[2px] bg-gradient-to-tr from-[#9333EA] to-purple-400 overflow-hidden flex-shrink-0 transition-transform group-hover/user:scale-105">
               <img
                 src={authorAvatar}
                 alt={postAuthor.name}
@@ -486,11 +490,11 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
             {/* Username and details */}
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-bold text-[15.5px] text-slate-900 tracking-tight group-hover/user:text-[#5B9DFF] transition-colors font-['Outfit'] truncate">
+                <span className="font-bold text-[15.5px] text-slate-900 tracking-tight group-hover/user:text-[#9333EA] transition-colors font-['Outfit'] truncate">
                   {postAuthor.name}
                 </span>
                 {postAuthor.isVerified && (
-                  <CheckCircle2 className="w-4.5 h-4.5 text-[#5B9DFF] fill-[#5B9DFF]/20 flex-shrink-0" />
+                  <CheckCircle2 className="w-4.5 h-4.5 text-[#9333EA] fill-[#9333EA]/20 flex-shrink-0" />
                 )}
               </div>
               <div className="flex items-center gap-1.5 text-[13px] text-slate-500 min-w-0">
@@ -650,9 +654,9 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                           setEditedCaption(post.caption);
                           setIsEditingCaption(true);
                         }}
-                        className="w-full px-3 py-2.5 rounded-xl text-left text-[13.5px] font-bold text-slate-700 hover:bg-blue-50 hover:text-[#5B9DFF] flex items-center gap-2.5 transition"
+                        className="w-full px-3 py-2.5 rounded-xl text-left text-[13.5px] font-bold text-slate-700 hover:bg-purple-50 hover:text-[#9333EA] flex items-center gap-2.5 transition"
                       >
-                        <Edit3 className="w-4.5 h-4.5 text-[#5B9DFF]" />
+                        <Edit3 className="w-4.5 h-4.5 text-[#9333EA]" />
                         <span>{t('feed_edit_caption')}</span>
                       </button>
 
@@ -758,7 +762,7 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                   className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
                 >
                   <div className="w-18 h-18 rounded-full bg-white/75 backdrop-blur-md flex items-center justify-center shadow-2xl">
-                    <ThumbsUp className="w-10 h-10 text-[#5B9DFF] fill-[#5B9DFF]" />
+                    <ThumbsUp className="w-10 h-10 text-[#9333EA] fill-[#9333EA]" />
                   </div>
                 </motion.div>
               )}
@@ -766,8 +770,11 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
 
             {/* Floating Overlaid Engagement Controls on Right Edge (Like, Dislike, Comments, Share) */}
             <div
-              className="absolute bottom-3.5 right-3 sm:right-3.5 flex flex-col items-center gap-3.5 z-10"
+              className="absolute bottom-3.5 right-3 sm:right-3.5 flex flex-col items-center gap-3.5 z-20 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
             >
               {/* 😊 Reaction Button with 7 Sticker popup */}
               <div className="relative flex flex-col items-center" ref={quickReactionRef}>
@@ -779,6 +786,8 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                     e.stopPropagation();
                     setShowQuickReaction((prev) => !prev);
                   }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                   aria-label="React with sticker"
                   title="React with sticker"
                   className="flex flex-col items-center gap-0.5 cursor-pointer group select-none touch-manipulation focus:outline-none animate-fade-in"
@@ -786,7 +795,7 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                   <div
                     className={`w-9 h-9 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-[0_4px_14px_rgba(0,0,0,0.35)] ${
                       post.userEmojiReaction
-                        ? 'bg-[#5B9DFF] text-white ring-2 ring-white/70 shadow-[0_4px_16px_rgba(91,157,255,0.5)]'
+                        ? 'bg-[#9333EA] text-white ring-2 ring-white/70 shadow-[0_4px_16px_rgba(147,51,234,0.5)]'
                         : 'bg-black/40 hover:bg-black/55 text-white border border-white/30'
                     }`}
                   >
@@ -825,13 +834,13 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                               setShowQuickReaction(false);
                             }}
                             className={`w-8 h-8 rounded-full flex items-center justify-center text-lg hover:bg-slate-100 transition-all cursor-pointer relative ${
-                              isSelected ? 'bg-blue-100/90 ring-1 ring-[#5B9DFF]' : ''
+                              isSelected ? 'bg-purple-100/90 ring-1 ring-[#9333EA]' : ''
                             }`}
                             title={`React with ${sticker}`}
                           >
                             <span>{sticker}</span>
                             {isSelected && (
-                              <span className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-[#5B9DFF]" />
+                              <span className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-[#9333EA]" />
                             )}
                           </motion.button>
                         );
@@ -861,6 +870,8 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                 type="button"
                 whileTap={{ scale: 0.88 }}
                 {...likeLongPress}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 aria-label={post.isLiked ? 'Unlike (Hold to view likes)' : 'Like (Hold to view likes)'}
                 title="Hold to see who liked or reacted"
                 className="flex flex-col items-center gap-0.5 cursor-pointer group select-none touch-manipulation focus:outline-none"
@@ -868,7 +879,7 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                 <div
                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-[0_4px_14px_rgba(0,0,0,0.35)] ${
                     post.isLiked
-                      ? 'bg-[#5B9DFF] text-white ring-2 ring-white/70 shadow-[0_4px_16px_rgba(91,157,255,0.5)]'
+                      ? 'bg-[#9333EA] text-white ring-2 ring-white/70 shadow-[0_4px_16px_rgba(147,51,234,0.5)]'
                       : 'bg-black/40 hover:bg-black/55 text-white border border-white/30'
                   }`}
                 >
@@ -898,6 +909,8 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                     onDislike(post.id);
                   }
                 }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 aria-label={post.isDisliked ? 'Remove Dislike' : 'Dislike'}
                 className="flex flex-col items-center gap-0.5 cursor-pointer group select-none touch-manipulation focus:outline-none"
               >
@@ -927,6 +940,8 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                 type="button"
                 whileTap={{ scale: 0.88 }}
                 {...commentsLongPress}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 aria-label="Comments (Hold to view commenters)"
                 title="Hold to see who commented"
                 className="flex flex-col items-center gap-0.5 cursor-pointer group select-none touch-manipulation focus:outline-none"
@@ -946,8 +961,12 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                 whileTap={{ scale: 0.88 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onShareClick(post);
+                  if (onShareClick) {
+                    onShareClick(post);
+                  }
                 }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 aria-label={t('feed_share_button')}
                 className="flex flex-col items-center gap-0.5 cursor-pointer group select-none touch-manipulation focus:outline-none"
               >
@@ -1046,18 +1065,18 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                     <div className="absolute inset-0 bg-black/5 group-hover/preview:bg-transparent transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#5B9DFF] uppercase tracking-wider mb-0.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#9333EA] uppercase tracking-wider mb-0.5">
                       <Link2 className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">{ogData?.publisher || domainName}</span>
                     </div>
-                    <h5 className="text-[13.5px] font-bold text-slate-800 truncate group-hover/preview:text-[#5B9DFF] transition-colors">
+                    <h5 className="text-[13.5px] font-bold text-slate-800 truncate group-hover/preview:text-[#9333EA] transition-colors">
                       {ogData?.title || (cleanUrlTitle ? cleanUrlTitle : domainName)}
                     </h5>
                     <p className="text-[11.5px] text-slate-400 truncate">
                       {ogData?.description || sharedUrl}
                     </p>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-500 group-hover/preview:bg-[#5B9DFF] group-hover/preview:text-white group-hover/preview:border-transparent transition-all flex-shrink-0 mr-1">
+                  <div className="w-8 h-8 rounded-full bg-white shadow-xs border border-slate-200 flex items-center justify-center text-slate-500 group-hover/preview:bg-[#9333EA] group-hover/preview:text-white group-hover/preview:border-transparent transition-all flex-shrink-0 mr-1">
                     <Link2 className="w-3.5 h-3.5" />
                   </div>
                 </motion.div>
@@ -1070,7 +1089,7 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                     type="button"
                     {...commentsLinkLongPress}
                     title="Tap to view comments, hold to see commenters"
-                    className="text-[13px] font-semibold text-slate-400 hover:text-[#5B9DFF] transition-colors cursor-pointer select-none"
+                    className="text-[13px] font-semibold text-slate-400 hover:text-[#9333EA] transition-colors cursor-pointer select-none"
                   >
                     {t('feed_comments_view_all', { count: postComments.length })}
                   </button>
@@ -1125,14 +1144,14 @@ const FeedCardComponent: React.FC<FeedCardProps> = ({
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
                 placeholder={t('feed_write_comment_placeholder')}
-                className="w-full text-xs h-9 pl-3.5 pr-10 rounded-full neu-inset text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/40"
+                className="w-full text-xs h-9 pl-3.5 pr-10 rounded-full neu-inset text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#9333EA]/40"
               />
               <div className="absolute right-1.5 flex items-center gap-1">
                 {commentInput.trim() && (
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     type="submit"
-                    className="w-7.5 h-7.5 rounded-full bg-[#5B9DFF] text-white flex items-center justify-center shadow-md cursor-pointer hover:bg-blue-600 transition"
+                    className="w-7.5 h-7.5 rounded-full bg-[#9333EA] text-white flex items-center justify-center shadow-md cursor-pointer hover:bg-purple-700 transition"
                     aria-label="Post comment"
                   >
                     <Send className="w-3.5 h-3.5" />

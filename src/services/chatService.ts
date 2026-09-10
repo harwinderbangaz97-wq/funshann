@@ -54,6 +54,8 @@ export const normalizeMessage = (id: string, raw: any): Message => {
     forwardedFrom: raw?.forwardedFrom,
     reactions: Array.isArray(raw?.reactions) ? raw.reactions : [],
     isDelivered: raw?.isDelivered !== undefined ? raw.isDelivered : true,
+    isVanish: Boolean(raw?.isVanish),
+    autoDelete: raw?.autoDelete || undefined,
   };
 };
 
@@ -130,6 +132,8 @@ export const addChatMessageToFirestore = async (
     isForwarded?: boolean;
     forwardedFrom?: string;
     privacyMode?: MessagePrivacyMode;
+    isVanish?: boolean;
+    autoDelete?: 'seen' | 'off';
   }
 ): Promise<string> => {
   if (!chatId) throw new Error('Missing chatId for addChatMessageToFirestore');
@@ -188,6 +192,12 @@ export const addChatMessageToFirestore = async (
     if (messageData.forwardedFrom) {
       messageObj.forwardedFrom = messageData.forwardedFrom;
     }
+  }
+  if (messageData.isVanish) {
+    messageObj.isVanish = true;
+  }
+  if (messageData.autoDelete) {
+    messageObj.autoDelete = messageData.autoDelete;
   }
 
   // Perform ONLY addDoc on chats/{chatId}/messages
@@ -286,6 +296,27 @@ export const deleteChatMessageFromFirestore = async (
     await deleteDoc(msgRef);
   } catch (error) {
     console.warn('Error deleting message from Firestore:', error);
+  }
+};
+
+/**
+ * Deletes all ephemeral Vanish mode messages in chats/{chatId}/messages
+ */
+export const deleteVanishMessagesFromFirestore = async (chatId: string): Promise<void> => {
+  try {
+    await ensureFirebaseAuth();
+    if (!chatId) return;
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const snap = await getDocs(messagesRef);
+    const vanishDocs = snap.docs.filter((d) => {
+      const data = d.data();
+      return Boolean(data.isVanish || data.autoDelete === 'seen');
+    });
+    for (const d of vanishDocs) {
+      await deleteDoc(d.ref).catch(console.warn);
+    }
+  } catch (error) {
+    console.warn('Error deleting vanish messages:', error);
   }
 };
 

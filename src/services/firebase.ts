@@ -769,23 +769,39 @@ export const DEFAULT_AVATAR =
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
 
 export const normalizeUser = (u: any): User => {
+  const currentAuthUser = auth.currentUser;
+  const isCurrentAuth = Boolean(currentAuthUser && u && (u.id === currentAuthUser.uid || u.userId === currentAuthUser.uid));
+  const authFallbackName = (isCurrentAuth && currentAuthUser?.displayName) || (isCurrentAuth && currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : '');
+  const authFallbackAvatar = (isCurrentAuth && currentAuthUser?.photoURL) || '';
+
   if (!u || typeof u !== 'object') {
     return {
-      id: 'user_fallback',
-      name: 'Funshann Member',
-      username: 'user',
-      avatar: DEFAULT_AVATAR,
+      id: isCurrentAuth && currentAuthUser ? currentAuthUser.uid : 'user_fallback',
+      name: authFallbackName || 'User',
+      username: (authFallbackName || 'user').toLowerCase().replace(/[^a-z0-9_]/g, ''),
+      avatar: authFallbackAvatar || DEFAULT_AVATAR,
       postsCount: 0,
       followersCount: 0,
       followingCount: 0,
       following: [],
     };
   }
+  const resolvedName = (u.name && u.name !== 'Funshann Member' && u.name.trim()) 
+    || (u.displayName && u.displayName !== 'Funshann Member' && u.displayName.trim())
+    || authFallbackName
+    || (u.email ? u.email.split('@')[0] : '')
+    || 'User';
+
+  const resolvedAvatar = (u.avatar && u.avatar !== DEFAULT_AVATAR && u.avatar.trim())
+    || (u.photoURL && u.photoURL !== DEFAULT_AVATAR && u.photoURL.trim())
+    || authFallbackAvatar
+    || DEFAULT_AVATAR;
+
   return {
-    id: u.id || u.userId || 'user',
-    name: u.name || u.displayName || 'Funshann Member',
-    username: u.username || 'user',
-    avatar: u.avatar || u.photoURL || DEFAULT_AVATAR,
+    id: u.id || u.userId || (isCurrentAuth && currentAuthUser ? currentAuthUser.uid : 'user'),
+    name: resolvedName,
+    username: u.username || (resolvedName || 'user').toLowerCase().replace(/[^a-z0-9_]/g, ''),
+    avatar: resolvedAvatar,
     bio: u.bio || '',
     location: u.location || '',
     website: u.website || '',
@@ -793,7 +809,7 @@ export const normalizeUser = (u: any): User => {
     socialLinks: Array.isArray(u.socialLinks) ? u.socialLinks : [],
     birthday: u.birthday || '',
     mobileNumber: u.mobileNumber || '',
-    email: u.email || '',
+    email: u.email || (isCurrentAuth && currentAuthUser?.email ? currentAuthUser.email : ''),
     postsCount: typeof u.postsCount === 'number' ? u.postsCount : 0,
     followersCount: typeof u.followersCount === 'number' ? u.followersCount : 0,
     followingCount: typeof u.followingCount === 'number' ? u.followingCount : 0,
@@ -1310,6 +1326,112 @@ export const getUserPostsCountFromFirestore = async (userId: string): Promise<nu
   }
 };
 
+export const getUserPostsFromFirestore = async (userId: string, limitCount?: number): Promise<Post[]> => {
+  if (!userId) return [];
+  try {
+    await ensureFirebaseAuth();
+    const postsRef = collection(db, 'posts');
+    const postsMap = new Map<string, Post>();
+
+    // 1. Primary query: where('userId', '==', userId) with orderBy('createdAt', 'desc')
+    try {
+      const q = limitCount && limitCount > 0
+        ? query(postsRef, where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(limitCount))
+        : query(postsRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+
+      const snap = await getDocs(q);
+      snap.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
+          if (p && p.id) {
+            postsMap.set(p.id, p);
+          }
+        }
+      });
+    } catch (indexErr) {
+      console.warn('Firestore indexed user posts query warning (retrying unindexed):', indexErr);
+      const qFallback = limitCount && limitCount > 0
+        ? query(postsRef, where('userId', '==', userId), limit(limitCount))
+        : query(postsRef, where('userId', '==', userId));
+      const snap = await getDocs(qFallback);
+      snap.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
+          if (p && p.id) {
+            postsMap.set(p.id, p);
+          }
+        }
+      });
+    }
+
+    // 2. Also query legacy authorId / uid / user.id variants to ensure NO stored posts are missed
+    const secondaryQueries = [
+      query(postsRef, where('authorId', '==', userId)),
+      query(postsRef, where('uid', '==', userId)),
+      query(postsRef, where('user.id', '==', userId)),
+    ];
+    const secondarySnaps = await Promise.all(
+      secondaryQueries.map((q) => getDocs(q).catch(() => null))
+    );
+    secondarySnaps.forEach((snap) => {
+      if (!snap) return;
+      snap.forEach((docSnap) => {
+        if (docSnap.exists()) {
+          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
+          if (p && p.id) {
+            postsMap.set(p.id, p);
+          }
+        }
+      });
+    });
+
+    const result = Array.from(postsMap.values());
+    result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    return result;
+  } catch (error) {
+    console.warn('Failed to fetch user posts from Firestore:', error);
+    return [];
+  }
+};
+
+export const subscribeToUserPosts = (userId: string, callback: (posts: Post[]) => void): (() => void) => {
+  if (!userId) return () => {};
+  try {
+    const postsRef = collection(db, 'posts');
+    let q: any;
+    try {
+      q = query(postsRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
+    } catch {
+      q = query(postsRef, where('userId', '==', userId));
+    }
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot: any) => {
+        const result: Post[] = [];
+        snapshot.forEach((docSnap: any) => {
+          if (docSnap.exists()) {
+            const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
+            if (p && p.id) {
+              result.push(p);
+            }
+          }
+        });
+        result.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+        callback(result);
+      },
+      (error: any) => {
+        console.warn('subscribeToUserPosts fallback:', error);
+        getUserPostsFromFirestore(userId).then(callback).catch(console.warn);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn('subscribeToUserPosts error:', err);
+    return () => {};
+  }
+};
+
 export const getUsersByIdsFromFirestore = async (userIds: string[], knownUsers: User[] = []): Promise<User[]> => {
   if (!userIds || userIds.length === 0) return [];
   const knownMap = new Map<string, User>();
@@ -1470,9 +1592,13 @@ export const getUserProfileFromFirestore = async (userId: string): Promise<User 
     }
     if (snap && snap.exists()) {
       const u = normalizeUser(snap.data());
-      const followings = await getUserFollowingsFromFirestore(userId);
+      const [followings, postsCount] = await Promise.all([
+        getUserFollowingsFromFirestore(userId).catch(() => []),
+        getUserPostsCountFromFirestore(userId).catch(() => u.postsCount),
+      ]);
       return {
         ...u,
+        postsCount: Math.max(u.postsCount, postsCount),
         following: followings,
         followingCount: followings.length > 0 ? followings.length : u.followingCount,
       };

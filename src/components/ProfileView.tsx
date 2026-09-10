@@ -47,11 +47,14 @@ import { FeedCard } from './FeedCard';
 import { useNavigation } from '../context/NavigationContext';
 import {
   DEFAULT_AVATAR,
+  auth,
   getFollowersListForUser,
   getFollowingListForUser,
   getUserFollowersFromFirestore,
   getUserFollowingsFromFirestore,
+  getUserPostsCountFromFirestore,
   subscribeToFollows,
+  subscribeToUserPosts,
 } from '../services/firebase';
 
 interface ProfileViewProps {
@@ -176,20 +179,36 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
 
   const activeUser = currentUser;
   const rawDisplayedUser = profileUser || activeUser;
+  const currentAuthUser = auth.currentUser;
+  const isTargetAuthUser = Boolean(
+    currentAuthUser &&
+    ((rawDisplayedUser?.id && rawDisplayedUser.id === currentAuthUser.uid) ||
+     (activeUser?.id && activeUser.id === currentAuthUser.uid))
+  );
+  const authFallbackName = (isTargetAuthUser && currentAuthUser?.displayName) || (isTargetAuthUser && currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : '');
+  const authFallbackAvatar = (isTargetAuthUser && currentAuthUser?.photoURL) || '';
+
   const displayedUser: User = {
-    id: rawDisplayedUser?.id || activeUser?.id || 'user_fallback',
-    name: rawDisplayedUser?.name || activeUser?.name || 'Funshann Member',
+    id: rawDisplayedUser?.id || activeUser?.id || (isTargetAuthUser && currentAuthUser ? currentAuthUser.uid : 'user_fallback'),
+    name: (rawDisplayedUser?.name && rawDisplayedUser.name !== 'Funshann Member' && rawDisplayedUser.name.trim())
+      || (activeUser?.name && activeUser.name !== 'Funshann Member' && activeUser.name.trim())
+      || authFallbackName
+      || (rawDisplayedUser?.email ? rawDisplayedUser.email.split('@')[0] : '')
+      || 'User',
     username: rawDisplayedUser?.username || activeUser?.username || 'user',
-    avatar: rawDisplayedUser?.avatar || activeUser?.avatar || DEFAULT_AVATAR,
-    bio: rawDisplayedUser?.bio || '',
-    website: rawDisplayedUser?.website || '',
-    location: rawDisplayedUser?.location || '',
-    interests: Array.isArray(rawDisplayedUser?.interests) ? rawDisplayedUser.interests : [],
-    socialLinks: Array.isArray(rawDisplayedUser?.socialLinks) ? rawDisplayedUser.socialLinks : [],
-    postsCount: rawDisplayedUser?.postsCount ?? 0,
-    followersCount: rawDisplayedUser?.followersCount ?? 0,
-    followingCount: rawDisplayedUser?.followingCount ?? 0,
-    isVerified: Boolean(rawDisplayedUser?.isVerified),
+    avatar: (rawDisplayedUser?.avatar && rawDisplayedUser.avatar !== DEFAULT_AVATAR && rawDisplayedUser.avatar.trim())
+      || (activeUser?.avatar && activeUser.avatar !== DEFAULT_AVATAR && activeUser.avatar.trim())
+      || authFallbackAvatar
+      || DEFAULT_AVATAR,
+    bio: rawDisplayedUser?.bio || activeUser?.bio || '',
+    website: rawDisplayedUser?.website || activeUser?.website || '',
+    location: rawDisplayedUser?.location || activeUser?.location || '',
+    interests: Array.isArray(rawDisplayedUser?.interests) ? rawDisplayedUser.interests : (activeUser?.interests || []),
+    socialLinks: Array.isArray(rawDisplayedUser?.socialLinks) ? rawDisplayedUser.socialLinks : (activeUser?.socialLinks || []),
+    postsCount: rawDisplayedUser?.postsCount ?? activeUser?.postsCount ?? 0,
+    followersCount: rawDisplayedUser?.followersCount ?? activeUser?.followersCount ?? 0,
+    followingCount: rawDisplayedUser?.followingCount ?? activeUser?.followingCount ?? 0,
+    isVerified: Boolean(rawDisplayedUser?.isVerified || activeUser?.isVerified),
     isFollowing: Boolean(rawDisplayedUser?.isFollowing),
   };
 
@@ -210,22 +229,45 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
     ? displayedUser.id
     : (currentUser?.id || '');
 
-  // Real calculated counters based on existing Firestore records
-  const effectivePostsCount = Array.isArray(userPosts)
-    ? userPosts.length
-    : (displayedUser.postsCount ?? 0);
+  const [realPostsCount, setRealPostsCount] = useState<number>(() => {
+    return Math.max(
+      Array.isArray(userPosts) ? userPosts.length : 0,
+      displayedUser.postsCount ?? 0
+    );
+  });
+
+  // Real calculated counters based on existing Firestore records without dropping counts
+  const effectivePostsCount = Math.max(
+    realPostsCount,
+    Array.isArray(userPosts) ? userPosts.length : 0,
+    displayedUser.postsCount ?? 0
+  );
 
   const [realFollowersCount, setRealFollowersCount] = useState<number>(() => displayedUser.followersCount ?? 0);
   const [realFollowingCount, setRealFollowingCount] = useState<number>(() => displayedUser.followingCount ?? 0);
 
   useEffect(() => {
+    setRealPostsCount((prev) => Math.max(
+      prev,
+      Array.isArray(userPosts) ? userPosts.length : 0,
+      displayedUser.postsCount ?? 0
+    ));
     setRealFollowersCount(displayedUser.followersCount ?? 0);
     setRealFollowingCount(displayedUser.followingCount ?? 0);
-  }, [displayedUser.id, displayedUser.followersCount, displayedUser.followingCount]);
+  }, [displayedUser.id, displayedUser.postsCount, displayedUser.followersCount, displayedUser.followingCount, userPosts?.length]);
 
   useEffect(() => {
     if (!targetProfileUserId || targetProfileUserId === 'user_fallback') return;
     let isMounted = true;
+
+    // Fetch genuine Firestore post count for this user
+    getUserPostsCountFromFirestore(targetProfileUserId)
+      .then((count) => {
+        if (isMounted && typeof count === 'number') {
+          setRealPostsCount((prev) => Math.max(prev, count, Array.isArray(userPosts) ? userPosts.length : 0));
+        }
+      })
+      .catch(console.warn);
 
     // Direct Firestore fetch using followingUid/followingId and followerUid/followerId
     getUserFollowingsFromFirestore(targetProfileUserId)
@@ -332,7 +374,46 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
     };
   }, [listModalType]);
 
-  const safeUserPosts = Array.isArray(userPosts) ? userPosts.filter((p): p is Post => Boolean(p && p.id)) : [];
+  const [internalUserPosts, setInternalUserPosts] = useState<Post[]>(() =>
+    Array.isArray(userPosts) ? userPosts.filter((p): p is Post => Boolean(p && p.id)) : []
+  );
+
+  useEffect(() => {
+    if (Array.isArray(userPosts)) {
+      setInternalUserPosts((prev) => {
+        const map = new Map<string, Post>();
+        prev.forEach((p) => map.set(p.id, p));
+        userPosts.forEach((p) => {
+          if (p && p.id) map.set(p.id, p);
+        });
+        const list = Array.from(map.values());
+        list.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+        return list;
+      });
+    }
+  }, [userPosts]);
+
+  useEffect(() => {
+    if (!targetProfileUserId || targetProfileUserId === 'user_fallback') return;
+    const unsub = subscribeToUserPosts(targetProfileUserId, (livePosts) => {
+      setInternalUserPosts((prev) => {
+        const map = new Map<string, Post>();
+        prev.filter((p) => p.id && p.id.startsWith('post_')).forEach((p) => map.set(p.id, p));
+        livePosts.forEach((p) => {
+          if (p && p.id) map.set(p.id, p);
+        });
+        const list = Array.from(map.values());
+        list.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+        return list;
+      });
+      setRealPostsCount((prev) => Math.max(prev, livePosts.length));
+    });
+    return () => unsub();
+  }, [targetProfileUserId]);
+
+  const safeUserPosts = internalUserPosts.length > 0
+    ? internalUserPosts
+    : (Array.isArray(userPosts) ? userPosts.filter((p): p is Post => Boolean(p && p.id)) : []);
   const safeSavedPosts = Array.isArray(savedPosts) ? savedPosts.filter((p): p is Post => Boolean(p && p.id)) : [];
   const displayPosts = isOwnProfile
     ? activeSubTab === 'posts'
@@ -438,7 +519,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               document.documentElement.style.overflow = '';
               if (onBack) onBack();
             }}
-            className="h-9 px-3.5 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#5B9DFF] flex items-center gap-1.5 transition cursor-pointer"
+            className="h-9 px-3.5 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#9333EA] flex items-center gap-1.5 transition cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
@@ -458,7 +539,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               whileTap={{ scale: 0.92 }}
               onClick={handleShareProfile}
               aria-label="Share profile"
-              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition cursor-pointer"
+              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
             </motion.button>
@@ -467,7 +548,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               whileTap={{ scale: 0.92 }}
               onClick={() => setIsIndividualMenuOpen(true)}
               aria-label="User settings"
-              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition cursor-pointer"
+              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition cursor-pointer"
             >
               <MoreVertical className="w-4 h-4" />
             </motion.button>
@@ -492,7 +573,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white dark:bg-slate-800 shadow-md border-2 border-white dark:border-slate-800 flex items-center justify-center"
                 title="Verified User"
               >
-                <CheckCircle2 className="w-5 h-5 text-[#5B9DFF] fill-[#5B9DFF]/20" />
+                <CheckCircle2 className="w-5 h-5 text-[#9333EA] fill-[#9333EA]/20" />
               </div>
             )}
           </div>
@@ -504,9 +585,9 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={() => setIsEditProfileOpen(true)}
-                  className="h-11 px-5 rounded-full neu-raised text-[13.5px] font-bold text-slate-700 hover:text-[#5B9DFF] flex items-center justify-center gap-2 transition-colors cursor-pointer flex-1 sm:flex-initial"
+                  className="h-11 px-5 rounded-full neu-raised text-[13.5px] font-bold text-slate-700 hover:text-[#9333EA] flex items-center justify-center gap-2 transition-colors cursor-pointer flex-1 sm:flex-initial"
                 >
-                  <Edit3 className="w-4 h-4 text-[#5B9DFF]" />
+                  <Edit3 className="w-4 h-4 text-[#9333EA]" />
                   <span>Edit Profile</span>
                 </motion.button>
 
@@ -515,7 +596,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                   onClick={handleShareProfile}
                   aria-label="Share Profile"
                   title="Share Profile"
-                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition-colors cursor-pointer shrink-0"
+                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition-colors cursor-pointer shrink-0"
                 >
                   <Share2 className="w-5 h-5" />
                 </motion.button>
@@ -524,7 +605,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                   whileTap={{ scale: 0.94 }}
                   onClick={onOpenSettings}
                   aria-label="Settings"
-                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition-colors cursor-pointer shrink-0"
+                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition-colors cursor-pointer shrink-0"
                 >
                   <Settings className="w-5 h-5" />
                 </motion.button>
@@ -558,9 +639,9 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={() => onOpenDirectChat && onOpenDirectChat(displayedUser)}
-                  className="h-11 px-5 rounded-full neu-raised flex items-center justify-center gap-2 text-[13.5px] font-bold text-slate-700 hover:text-[#5B9DFF] transition cursor-pointer flex-1 sm:flex-initial shadow-sm"
+                  className="h-11 px-5 rounded-full neu-raised flex items-center justify-center gap-2 text-[13.5px] font-bold text-slate-700 hover:text-[#9333EA] transition cursor-pointer flex-1 sm:flex-initial shadow-sm"
                 >
-                  <MessageSquare className="w-4.5 h-4.5 text-[#5B9DFF]" />
+                  <MessageSquare className="w-4.5 h-4.5 text-[#9333EA]" />
                   <span>Message</span>
                 </motion.button>
               </>
@@ -575,7 +656,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               {displayedUser.name}
             </h2>
           </div>
-          <p className="text-[13.5px] font-semibold text-[#5B9DFF]">
+          <p className="text-[13.5px] font-semibold text-[#9333EA]">
             @{displayedUser.username}
           </p>
           {displayedUser.bio && (
@@ -587,7 +668,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
           <div className="flex flex-wrap items-center gap-3.5 text-[13px] text-slate-500 pt-1">
             {displayedUser.location && (
               <span className="flex items-center gap-1">
-                <MapPin className="w-4 h-4 text-[#5B9DFF]" />
+                <MapPin className="w-4 h-4 text-[#9333EA]" />
                 {displayedUser.location}
               </span>
             )}
@@ -600,7 +681,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 }
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1 text-[#5B9DFF] font-semibold hover:underline"
+                className="flex items-center gap-1 text-[#9333EA] font-semibold hover:underline"
               >
                 <LinkIcon className="w-4 h-4" />
                 <span>{displayedUser.website.replace(/^https?:\/\//, '')}</span>
@@ -613,7 +694,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         {Array.isArray(displayedUser.interests) && displayedUser.interests.length > 0 && (
           <div className="mb-3.5 pt-2 border-t border-slate-100/80">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Tag className="w-3.5 h-3.5 text-[#5B9DFF]" />
+              <Tag className="w-3.5 h-3.5 text-[#9333EA]" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Interests & Passions
               </span>
@@ -624,7 +705,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 return (
                   <span
                     key={`${cleanTag}-${idx}`}
-                    className="px-3 py-1 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#5B9DFF] transition-colors"
+                    className="px-3 py-1 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#9333EA] transition-colors"
                   >
                     {cleanTag}
                   </span>
@@ -639,7 +720,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
           <div className="mb-3.5 pt-2 border-t border-slate-100/80">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Globe className="w-3.5 h-3.5 text-[#5B9DFF]" />
+                <Globe className="w-3.5 h-3.5 text-[#9333EA]" />
                 Connected Channels
               </span>
               <span className="text-[11px] text-slate-400 font-semibold">
@@ -658,7 +739,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                     title={link?.title || link?.platform || 'Social Link'}
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.92 }}
-                    className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF] hover:border-[#5B9DFF]/50 transition group shadow-xs cursor-pointer"
+                    className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#9333EA] hover:border-[#9333EA]/50 transition group shadow-xs cursor-pointer"
                   >
                     <Icon className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
                   </motion.a>
@@ -746,7 +827,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         {/* Section Header with Feed vs Grid Layout Switcher */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <Layers className="w-4.5 h-4.5 text-[#5B9DFF]" />
+            <Layers className="w-4.5 h-4.5 text-[#9333EA]" />
             <span className="text-sm font-bold text-slate-800">
               {isOwnProfile
                 ? activeSubTab === 'posts'
@@ -865,7 +946,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                     onClick={(e) => handlePostLikeClick(e, post.id)}
                     className={`flex items-center gap-1 px-2 py-1 rounded-full backdrop-blur-md transition cursor-pointer font-bold ${
                       post.isLiked
-                        ? 'bg-[#5B9DFF] text-white shadow-xs'
+                        ? 'bg-[#9333EA] text-white shadow-xs'
                         : 'bg-black/40 text-slate-200 hover:bg-black/60'
                     }`}
                     title="Like post"
@@ -978,7 +1059,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {isLoadingModalUsers ? (
                   <div className="flex flex-col items-center justify-center py-10 space-y-2.5">
-                    <div className="w-7 h-7 border-2 border-[#5B9DFF] border-t-transparent rounded-full animate-spin" />
+                    <div className="w-7 h-7 border-2 border-[#9333EA] border-t-transparent rounded-full animate-spin" />
                     <span className="text-xs text-slate-400 font-medium">Loading {listModalType}...</span>
                   </div>
                 ) : modalUsers.length === 0 ? (
@@ -1004,12 +1085,12 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                         <div>
                           <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1">
                             {user.name}
-                            {user.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-[#5B9DFF] fill-current" />}
+                            {user.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-[#9333EA] fill-current" />}
                           </h4>
                           <p className="text-xs text-slate-400">@{user.username}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-[#5B9DFF] neu-raised px-3 py-1.5 rounded-full">
+                      <span className="text-xs font-bold text-[#9333EA] neu-raised px-3 py-1.5 rounded-full">
                         View
                       </span>
                     </div>

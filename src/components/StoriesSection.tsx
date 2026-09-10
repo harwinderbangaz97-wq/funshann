@@ -49,7 +49,7 @@ const StoriesSectionComponent: React.FC<StoriesSectionProps> = ({
           <div
             className={`relative w-[72px] h-[72px] rounded-full p-1 flex items-center justify-center transition-all group-hover:shadow-lg ${
               hasUserStory
-                ? 'bg-gradient-to-tr from-[#5B9DFF] via-indigo-400 to-rose-400 p-[2.5px]'
+                ? 'bg-gradient-to-tr from-[#9333EA] via-purple-500 to-fuchsia-500 p-[2.5px]'
                 : 'neu-raised p-1'
             }`}
           >
@@ -70,7 +70,7 @@ const StoriesSectionComponent: React.FC<StoriesSectionProps> = ({
                 e.stopPropagation();
                 onAddStory();
               }}
-              className="absolute -bottom-1 -right-1 w-6.5 h-6.5 rounded-full bg-[#5B9DFF] text-white flex items-center justify-center shadow-md ring-2 ring-white hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+              className="absolute -bottom-1 -right-1 w-6.5 h-6.5 rounded-full bg-[#9333EA] text-white flex items-center justify-center shadow-md ring-2 ring-white hover:scale-110 active:scale-95 transition-transform cursor-pointer"
               title="Add story"
             >
               <Plus className="w-4.5 h-4.5 stroke-[3]" />
@@ -110,12 +110,12 @@ const StoriesSectionComponent: React.FC<StoriesSectionProps> = ({
               className="flex flex-col items-center flex-shrink-0 cursor-pointer group"
               onClick={() => onSelectStory(index)}
             >
-              {/* Floating circular profile card with soft blue border */}
+              {/* Floating circular profile card with electric purple border */}
               <div
                 className={`relative w-[72px] h-[72px] rounded-full p-[3px] transition-all duration-300 ${
                   story.isSeen
                     ? 'neu-flat p-[3px] border border-slate-200'
-                    : 'neu-raised bg-gradient-to-tr from-[#5B9DFF] to-[#8ac0ff] p-[2.5px]'
+                    : 'neu-raised bg-gradient-to-tr from-[#9333EA] to-[#C084FC] p-[2.5px]'
                 }`}
               >
                 <div className="w-full h-full rounded-full overflow-hidden bg-white p-[2px]">
@@ -130,7 +130,7 @@ const StoriesSectionComponent: React.FC<StoriesSectionProps> = ({
               </div>
 
               {/* Small Username Below */}
-              <span className="mt-2 text-[12.5px] font-semibold text-slate-600 max-w-[68px] truncate text-center group-hover:text-[#5B9DFF] transition-colors">
+              <span className="mt-2 text-[12.5px] font-semibold text-slate-600 max-w-[68px] truncate text-center group-hover:text-[#9333EA] transition-colors">
                 {storyUsername}
               </span>
             </motion.div>

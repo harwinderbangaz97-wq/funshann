@@ -322,13 +322,13 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
                 className={`w-9 h-9 rounded-full flex items-center justify-center neu-raised ${
                   type === 'reactions'
                     ? 'text-rose-500 bg-rose-50/60'
-                    : 'text-[#5B9DFF] bg-blue-50/60'
+                    : 'text-[#9333EA] bg-purple-50/60'
                 }`}
               >
                 {type === 'reactions' ? (
                   <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
                 ) : (
-                  <MessageCircle className="w-5 h-5 text-[#5B9DFF]" />
+                  <MessageCircle className="w-5 h-5 text-[#9333EA]" />
                 )}
               </div>
               <div>
@@ -365,7 +365,7 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
                     onClick={() => setSelectedTab(tab.key)}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer select-none ${
                       isActive
-                        ? 'bg-[#5B9DFF] text-white shadow-xs'
+                        ? 'bg-[#9333EA] text-white shadow-xs'
                         : 'bg-white text-slate-600 hover:text-slate-900 neu-raised'
                     }`}
                   >
@@ -388,7 +388,7 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-2.5 no-scrollbar">
             {isLoadingUsers && (
               <div className="flex items-center justify-center py-4 text-xs text-slate-400 font-medium gap-2">
-                <div className="w-4 h-4 border-2 border-[#5B9DFF] border-t-transparent rounded-full animate-spin" />
+                <div className="w-4 h-4 border-2 border-[#9333EA] border-t-transparent rounded-full animate-spin" />
                 <span>Loading users...</span>
               </div>
             )}
@@ -432,10 +432,10 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
                         </div>
 
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-slate-800 truncate flex items-center gap-1 group-hover:text-[#5B9DFF] transition-colors">
+                          <h4 className="text-sm font-bold text-slate-800 truncate flex items-center gap-1 group-hover:text-[#9333EA] transition-colors">
                             {item.user.name}
                             {item.user.isVerified && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#5B9DFF] fill-current flex-shrink-0" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#9333EA] fill-current flex-shrink-0" />
                             )}
                           </h4>
                           <p className="text-xs text-slate-400 truncate">
@@ -448,7 +448,7 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
                         <span className="text-lg w-8.5 h-8.5 rounded-full bg-slate-50 neu-inset flex items-center justify-center">
                           {item.emoji}
                         </span>
-                        <span className="text-xs font-semibold text-[#5B9DFF] group-hover:underline px-2 py-1">
+                        <span className="text-xs font-semibold text-[#9333EA] group-hover:underline px-2 py-1">
                           View
                         </span>
                       </div>
@@ -491,10 +491,10 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
                         />
 
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-slate-800 truncate flex items-center gap-1 group-hover:text-[#5B9DFF] transition-colors">
+                          <h4 className="text-sm font-bold text-slate-800 truncate flex items-center gap-1 group-hover:text-[#9333EA] transition-colors">
                             {item.user.name}
                             {item.user.isVerified && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#5B9DFF] fill-current flex-shrink-0" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#9333EA] fill-current flex-shrink-0" />
                             )}
                           </h4>
                           <p className="text-xs text-slate-400 truncate">
@@ -512,7 +512,7 @@ export const EngagementUsersModal: React.FC<EngagementUsersModalProps> = ({
                         <span className="text-[11px] font-bold text-slate-600 bg-slate-100/90 px-2.5 py-1 rounded-full border border-slate-200/50">
                           {item.commentCount} {item.commentCount === 1 ? 'comment' : 'comments'}
                         </span>
-                        <span className="text-xs font-semibold text-[#5B9DFF] group-hover:underline px-1.5 py-1">
+                        <span className="text-xs font-semibold text-[#9333EA] group-hover:underline px-1.5 py-1">
                           View
                         </span>
                       </div>

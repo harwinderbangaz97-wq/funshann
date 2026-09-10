@@ -45,6 +45,7 @@ export interface User {
   isVerified?: boolean;
   isFollowing?: boolean;
   isOnline?: boolean;
+  messagingPrivacy?: 'everyone' | 'followers_only' | 'disabled';
   lastSeen?: any;
   lastActive?: any;
   status?: 'active' | 'suspended';
@@ -179,6 +180,8 @@ export interface Message {
   isForwarded?: boolean;
   forwardedFrom?: string;
   senderName?: string;
+  isVanish?: boolean;
+  autoDelete?: boolean | 'seen' | 'off' | string;
 }
 
 export interface ChatThread {

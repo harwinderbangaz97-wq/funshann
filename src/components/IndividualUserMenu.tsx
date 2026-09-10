@@ -27,6 +27,11 @@ import {
   FolderLock,
   FolderHeart,
   ShieldCheck,
+  Moon,
+  Sun,
+  Shield,
+  Sliders,
+  MessageSquareOff,
 } from 'lucide-react';
 import { User } from '../types';
 import {
@@ -36,6 +41,7 @@ import {
   UserChatSettings,
   getIndividualChatSettings,
   saveIndividualChatSettings,
+  isChatInQuietHours,
 } from '../services/individualChatSettingsService';
 import { UniversalReportModal } from './UniversalReportModal';
 import { blockUserAccount, isUserBlocked } from '../services/safetyService';
@@ -52,9 +58,16 @@ interface IndividualUserMenuProps {
   onShowToast?: (message: string) => void;
   onUserBlocked?: (userId: string) => void;
   onOpenWallpaper?: () => void;
+  onVanishModeChange?: (active: boolean) => void;
 }
 
-type MenuScreen = 'main' | 'delete_chat' | 'notification' | 'media_visibility';
+type MenuScreen =
+  | 'main'
+  | 'delete_chat'
+  | 'notification'
+  | 'media_visibility'
+  | 'vanish_mode'
+  | 'quiet_hours';
 
 export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
   isOpen,
@@ -68,6 +81,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
   onShowToast,
   onUserBlocked,
   onOpenWallpaper,
+  onVanishModeChange,
 }) => {
   const [currentScreen, setCurrentScreen] = useState<MenuScreen>('main');
   const [chatSettings, setChatSettings] = useState<UserChatSettings>(() =>
@@ -108,6 +122,58 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
       onUserBlocked(user.id);
     }
     onClose();
+  };
+
+  const handleToggleVanishMode = () => {
+    const nextState = !chatSettings.vanishMode;
+    const updated = saveIndividualChatSettings(user.id, { vanishMode: nextState });
+    setChatSettings(updated);
+    if (onVanishModeChange) onVanishModeChange(nextState);
+    if (onShowToast) {
+      onShowToast(
+        nextState
+          ? `🕶️ Vanish Mode activated for ${user.name}`
+          : `Vanish Mode turned off for ${user.name}`
+      );
+    }
+  };
+
+  const handleToggleDisableMessages = () => {
+    const nextState = !chatSettings.isMessagesDisabled;
+    const updated = saveIndividualChatSettings(user.id, { isMessagesDisabled: nextState });
+    setChatSettings(updated);
+    if (onShowToast) {
+      onShowToast(
+        nextState
+          ? `Messages disabled for ${user.name}`
+          : `Messages re-enabled for ${user.name}`
+      );
+    }
+  };
+
+  const handleToggleQuietHours = () => {
+    const nextState = !chatSettings.quietHoursEnabled;
+    const updated = saveIndividualChatSettings(user.id, { quietHoursEnabled: nextState });
+    setChatSettings(updated);
+    if (onShowToast) {
+      onShowToast(
+        nextState
+          ? `🌙 Quiet hours schedule activated (${updated.quietHoursStart} - ${updated.quietHoursEnd})`
+          : `Quiet hours schedule turned off`
+      );
+    }
+  };
+
+  const handleUpdateQuietHoursTime = (start: string, end: string) => {
+    const updated = saveIndividualChatSettings(user.id, {
+      quietHoursStart: start,
+      quietHoursEnd: end,
+      quietHoursEnabled: true,
+    });
+    setChatSettings(updated);
+    if (onShowToast) {
+      onShowToast(`Quiet hours schedule updated to ${start} - ${end}`);
+    }
   };
 
   const handleUpdateMediaVisibility = (visibility: MediaVisibilitySetting) => {
@@ -200,7 +266,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header Bar */}
-          <div className="flex items-center justify-between border-b border-slate-100/90 pb-3 mb-2 px-1">
+          <div className="flex items-center justify-between border-b border-slate-100/90 pb-3 mb-2 px-1 flex-shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
               {currentScreen !== 'main' ? (
                 <button
@@ -228,6 +294,10 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                 <h3 className="text-[14.5px] font-bold text-slate-900 truncate">
                   {currentScreen === 'main'
                     ? user.name
+                    : currentScreen === 'vanish_mode'
+                    ? 'Vanish Mode'
+                    : currentScreen === 'quiet_hours'
+                    ? 'Disable / Quiet Hours'
                     : currentScreen === 'delete_chat'
                     ? 'Delete Chat'
                     : currentScreen === 'media_visibility'
@@ -254,10 +324,71 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
           </div>
 
           {/* Screen Content */}
-          <div className="py-1">
+          <div className="py-1 overflow-y-auto no-scrollbar max-h-[70vh]">
             {/* MAIN INDIVIDUAL MENU */}
             {currentScreen === 'main' && (
               <div className="space-y-1.5">
+                {/* 0. Vanish Mode Toggle Card */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('vanish_mode')}
+                  className={`w-full h-12 px-3.5 rounded-[18px] text-left text-[14px] font-bold flex items-center justify-between transition cursor-pointer ${
+                    chatSettings.vanishMode
+                      ? 'bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-blue-500/10 border border-purple-300 text-purple-900 shadow-xs'
+                      : 'text-slate-800 hover:bg-purple-50/70 hover:text-purple-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center ${chatSettings.vanishMode ? 'bg-purple-600 text-white shadow-xs' : 'neu-raised text-purple-600'}`}>
+                      <EyeOff className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <span>Vanish / Incognito Mode</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {chatSettings.vanishMode ? (
+                      <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-600 text-white flex items-center gap-1 animate-pulse">
+                        <Sparkles className="w-3 h-3" />
+                        <span>ACTIVE</span>
+                      </span>
+                    ) : (
+                      <span className="text-[11.5px] font-medium text-slate-400">Off</span>
+                    )}
+                    <ChevronRight className="w-4.5 h-4.5 text-slate-400" />
+                  </div>
+                </button>
+
+                {/* 0.5 Quiet Hours & Message Disabling */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentScreen('quiet_hours')}
+                  className="w-full h-12 px-3.5 rounded-[18px] text-left text-[14px] font-bold text-slate-800 hover:bg-indigo-50/70 hover:text-indigo-700 flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8.5 h-8.5 rounded-full neu-raised flex items-center justify-center ${chatSettings.isMessagesDisabled || chatSettings.quietHoursEnabled ? 'text-indigo-600' : 'text-slate-600'}`}>
+                      {chatSettings.isMessagesDisabled ? (
+                        <MessageSquareOff className="w-4.5 h-4.5 text-rose-500" />
+                      ) : (
+                        <Moon className="w-4.5 h-4.5 text-indigo-600" />
+                      )}
+                    </div>
+                    <span>Quiet Hours & Mute Chat</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <span className="text-[11.5px] font-medium text-slate-500">
+                      {chatSettings.isMessagesDisabled
+                        ? 'Disabled'
+                        : isChatInQuietHours(user.id).inQuietHours
+                        ? '🌙 Quiet Now'
+                        : chatSettings.quietHoursEnabled
+                        ? `${chatSettings.quietHoursStart}-${chatSettings.quietHoursEnd}`
+                        : 'Off'}
+                    </span>
+                    <ChevronRight className="w-4.5 h-4.5 text-slate-400" />
+                  </div>
+                </button>
+
                 {/* 1. Unfollow / Follow */}
                 <button
                   type="button"
@@ -740,6 +871,183 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                   <p className="text-[11px] text-slate-500 leading-relaxed">
                     Setting media visibility to <span className="font-semibold text-slate-700">"No"</span> prevents newly received photos and videos from being indexed into the system photos gallery or shared albums on your phone.
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* VANISH MODE SUBMENU */}
+            {currentScreen === 'vanish_mode' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-[22px] bg-gradient-to-br from-purple-500/15 via-indigo-500/10 to-blue-500/10 border border-purple-200/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md">
+                        <EyeOff className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-[14px] font-bold text-purple-950">Vanish Mode</h4>
+                        <p className="text-[11px] text-purple-700 font-medium">Ephemeral & Private Chat</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleVanishMode}
+                      className={`w-12 h-7 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        chatSettings.vanishMode ? 'bg-purple-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform ${
+                          chatSettings.vanishMode ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <p className="text-[12px] text-slate-600 leading-relaxed bg-white/80 p-3 rounded-[16px] border border-purple-100">
+                    When Vanish Mode is active, sent and received messages will automatically disappear from both sides after they have been opened and read, or immediately when you exit the chat.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <h5 className="text-[12px] font-bold text-slate-700 px-1">How Vanish Mode Works:</h5>
+                  <div className="space-y-2 text-[12px] text-slate-600">
+                    <div className="p-3 rounded-2xl neu-inset flex items-start gap-2.5">
+                      <Check className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <span>Messages self-destruct once read by the recipient.</span>
+                    </div>
+                    <div className="p-3 rounded-2xl neu-inset flex items-start gap-2.5">
+                      <Check className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <span>Active purple aura and top banner indicates Vanish Mode is ON.</span>
+                    </div>
+                    <div className="p-3 rounded-2xl neu-inset flex items-start gap-2.5">
+                      <Check className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <span>All ephemeral vanish history is cleared when exiting.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleVanishMode}
+                  className={`w-full h-11 rounded-full text-xs font-bold transition shadow-sm cursor-pointer ${
+                    chatSettings.vanishMode
+                      ? 'bg-slate-800 text-white hover:bg-slate-900'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                  }`}
+                >
+                  {chatSettings.vanishMode ? 'Turn Off Vanish Mode' : 'Turn On Vanish Mode'}
+                </button>
+              </div>
+            )}
+
+            {/* QUIET HOURS & DISABLE MESSAGES SUBMENU */}
+            {currentScreen === 'quiet_hours' && (
+              <div className="space-y-4">
+                {/* 1. Disable All Messages Toggle */}
+                <div className="p-3.5 rounded-[22px] neu-raised space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${chatSettings.isMessagesDisabled ? 'bg-rose-500 text-white' : 'neu-inset text-slate-600'}`}>
+                        <MessageSquareOff className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-[13.5px] font-bold text-slate-800">Disable Messages</h4>
+                        <p className="text-[11px] text-slate-500">Pause incoming & outgoing chat</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleDisableMessages}
+                      className={`w-11 h-6.5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        chatSettings.isMessagesDisabled ? 'bg-rose-500' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transform transition-transform ${
+                          chatSettings.isMessagesDisabled ? 'translate-x-4.5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {chatSettings.isMessagesDisabled && (
+                    <p className="text-[11px] text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-100 font-medium">
+                      Messages with {user.name} are disabled. You will not send or receive messages in this thread.
+                    </p>
+                  )}
+                </div>
+
+                {/* 2. Quiet Hours Schedule */}
+                <div className="p-3.5 rounded-[22px] neu-raised space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${chatSettings.quietHoursEnabled ? 'bg-indigo-600 text-white' : 'neu-inset text-slate-600'}`}>
+                        <Moon className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <h4 className="text-[13.5px] font-bold text-slate-800">Quiet Hours Schedule</h4>
+                        <p className="text-[11px] text-slate-500">Auto-pause alerts during quiet time</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleQuietHours}
+                      className={`w-11 h-6.5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        chatSettings.quietHoursEnabled ? 'bg-indigo-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transform transition-transform ${
+                          chatSettings.quietHoursEnabled ? 'translate-x-4.5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Time Pickers */}
+                  <div className="space-y-2 pt-1 border-t border-slate-100">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Start Time</label>
+                        <input
+                          type="time"
+                          value={chatSettings.quietHoursStart || '22:00'}
+                          onChange={(e) => handleUpdateQuietHoursTime(e.target.value, chatSettings.quietHoursEnd || '07:00')}
+                          className="w-full px-3 py-2 rounded-xl neu-inset text-xs font-bold text-slate-800 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider block mb-1">End Time</label>
+                        <input
+                          type="time"
+                          value={chatSettings.quietHoursEnd || '07:00'}
+                          onChange={(e) => handleUpdateQuietHoursTime(chatSettings.quietHoursStart || '22:00', e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl neu-inset text-xs font-bold text-slate-800 outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Presets */}
+                    <div className="pt-2">
+                      <p className="text-[11px] font-semibold text-slate-500 mb-1.5">Quick Presets:</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { label: '10 PM - 7 AM', start: '22:00', end: '07:00' },
+                          { label: '11 PM - 8 AM', start: '23:00', end: '08:00' },
+                          { label: '9 PM - 6 AM', start: '21:00', end: '06:00' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => handleUpdateQuietHoursTime(preset.start, preset.end)}
+                            className="py-1.5 px-2 rounded-xl neu-inset hover:bg-indigo-50 text-[10.5px] font-bold text-slate-700 hover:text-indigo-600 transition cursor-pointer"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

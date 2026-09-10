@@ -85,8 +85,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             title={t('nav_home')}
             className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-full cursor-pointer select-none touch-manipulation transition-all duration-300 ${
               activeTab === 'home'
-                ? 'neu-active-blue-soft text-[#5B9DFF] ring-2 ring-[#5B9DFF]/30'
-                : 'neu-raised text-slate-500 hover:text-[#5B9DFF]'
+                ? 'neu-active-blue-soft text-[#9333EA] ring-2 ring-[#9333EA]/30'
+                : 'neu-raised text-slate-500 hover:text-[#9333EA]'
             }`}
           >
             <Home
@@ -97,7 +97,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             {activeTab === 'home' && (
               <motion.span
                 layoutId="activeDot"
-                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#5B9DFF] pointer-events-none"
+                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#9333EA] pointer-events-none"
               />
             )}
           </motion.button>
@@ -113,8 +113,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             title={t('nav_search')}
             className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-full cursor-pointer select-none touch-manipulation transition-all duration-300 ${
               activeTab === 'search'
-                ? 'neu-active-blue-soft text-[#5B9DFF] ring-2 ring-[#5B9DFF]/30'
-                : 'neu-raised text-slate-500 hover:text-[#5B9DFF]'
+                ? 'neu-active-blue-soft text-[#9333EA] ring-2 ring-[#9333EA]/30'
+                : 'neu-raised text-slate-500 hover:text-[#9333EA]'
             }`}
           >
             <Search
@@ -125,7 +125,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             {activeTab === 'search' && (
               <motion.span
                 layoutId="activeDot"
-                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#5B9DFF] pointer-events-none"
+                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#9333EA] pointer-events-none"
               />
             )}
           </motion.button>
@@ -140,9 +140,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               onClick={() => onTabChange('upload')}
               aria-label={t('nav_upload')}
               title={t('nav_upload')}
-              className="relative w-14 h-14 rounded-full cursor-pointer select-none touch-manipulation neu-raised bg-gradient-to-tr from-white to-[#f8fafd] flex items-center justify-center ring-4 ring-[#eef3f9] shadow-lg text-[#5B9DFF] hover:shadow-xl transition-all"
+              className="relative w-14 h-14 rounded-full cursor-pointer select-none touch-manipulation neu-raised bg-gradient-to-tr from-white to-[#fcfaff] flex items-center justify-center ring-4 ring-[#f3e8ff] shadow-lg text-[#9333EA] hover:shadow-xl transition-all"
             >
-              <div className="w-12 h-12 rounded-full bg-[#5B9DFF] text-white flex items-center justify-center shadow-md shadow-[#5B9DFF]/35 pointer-events-none">
+              <div className="w-12 h-12 rounded-full bg-[#9333EA] text-white flex items-center justify-center shadow-md shadow-[#9333EA]/35 pointer-events-none">
                 <Plus className="w-6.5 h-6.5 stroke-[3]" />
               </div>
             </motion.button>
@@ -160,8 +160,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             title={t('nav_chat')}
             className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-full cursor-pointer select-none touch-manipulation transition-all duration-300 ${
               activeTab === 'chat'
-                ? 'neu-active-blue-soft text-[#5B9DFF] ring-2 ring-[#5B9DFF]/30'
-                : 'neu-raised text-slate-500 hover:text-[#5B9DFF]'
+                ? 'neu-active-blue-soft text-[#9333EA] ring-2 ring-[#9333EA]/30'
+                : 'neu-raised text-slate-500 hover:text-[#9333EA]'
             }`}
           >
             <MessageCircle
@@ -180,7 +180,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             {activeTab === 'chat' && (
               <motion.span
                 layoutId="activeDot"
-                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#5B9DFF] pointer-events-none"
+                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#9333EA] pointer-events-none"
               />
             )}
           </motion.button>
@@ -196,8 +196,8 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             title={t('nav_profile')}
             className={`relative flex flex-col items-center justify-center w-12 h-12 rounded-full cursor-pointer select-none touch-manipulation transition-all duration-300 ${
               activeTab === 'profile'
-                ? 'neu-active-blue-soft text-[#5B9DFF] ring-2 ring-[#5B9DFF]/30'
-                : 'neu-raised text-slate-500 hover:text-[#5B9DFF]'
+                ? 'neu-active-blue-soft text-[#9333EA] ring-2 ring-[#9333EA]/30'
+                : 'neu-raised text-slate-500 hover:text-[#9333EA]'
             }`}
           >
             <UserIcon
@@ -208,7 +208,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
             {activeTab === 'profile' && (
               <motion.span
                 layoutId="activeDot"
-                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#5B9DFF] pointer-events-none"
+                className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-[#9333EA] pointer-events-none"
               />
             )}
           </motion.button>

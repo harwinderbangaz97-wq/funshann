@@ -231,11 +231,11 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                       setShowOptionsMenu(false);
                       handleSaveToggle();
                     }}
-                    className="w-full px-3 py-2.5 rounded-xl text-left text-[13.5px] font-bold text-slate-700 hover:bg-blue-50 hover:text-[#5B9DFF] flex items-center gap-2.5 transition"
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-[13.5px] font-bold text-slate-700 hover:bg-purple-50 hover:text-[#9333EA] flex items-center gap-2.5 transition"
                   >
                     <Bookmark
                       className={`w-4.5 h-4.5 ${
-                        isSaved ? 'fill-[#5B9DFF] text-[#5B9DFF]' : 'text-slate-500'
+                        isSaved ? 'fill-[#9333EA] text-[#9333EA]' : 'text-slate-500'
                       }`}
                     />
                     <span>{isSaved ? 'Remove from Saved' : 'Save Post'}</span>
@@ -274,9 +274,9 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                           setEditedCaption(post.caption || '');
                           setIsEditingCaption(true);
                         }}
-                        className="w-full px-3 py-2.5 rounded-xl text-left text-[13.5px] font-bold text-slate-700 hover:bg-blue-50 hover:text-[#5B9DFF] flex items-center gap-2.5 transition"
+                        className="w-full px-3 py-2.5 rounded-xl text-left text-[13.5px] font-bold text-slate-700 hover:bg-purple-50 hover:text-[#9333EA] flex items-center gap-2.5 transition"
                       >
-                        <Edit3 className="w-4.5 h-4.5 text-[#5B9DFF]" />
+                        <Edit3 className="w-4.5 h-4.5 text-[#9333EA]" />
                         <span>Edit Caption</span>
                       </button>
 
@@ -359,7 +359,7 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold">{postAuthor.name}</span>
-                    {postAuthor.isVerified && <span className="text-blue-400 text-xs">✨</span>}
+                    {postAuthor.isVerified && <span className="text-purple-400 text-xs">✨</span>}
                   </div>
                   <span className="text-[10px] text-white/70">@{postAuthor.username}</span>
                 </div>
@@ -376,10 +376,10 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                     }
                   }}
                   className={`flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/25 transition cursor-pointer ${
-                    post.isLiked ? 'text-[#5B9DFF] bg-blue-500/20' : 'text-white'
+                    post.isLiked ? 'text-[#9333EA] bg-purple-500/20' : 'text-white'
                   }`}
                 >
-                  <ThumbsUp className={`w-3.5 h-3.5 ${post.isLiked ? 'fill-[#5B9DFF]' : ''}`} />
+                  <ThumbsUp className={`w-3.5 h-3.5 ${post.isLiked ? 'fill-[#9333EA]' : ''}`} />
                   <span>{post.likesCount || 0}</span>
                 </button>
 
@@ -409,7 +409,7 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                     onClick={() => setShowQuickReaction((prev) => !prev)}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-full transition cursor-pointer ${
                       post.userEmojiReaction
-                        ? 'bg-blue-500/30 text-blue-300 border border-[#5B9DFF]/40'
+                        ? 'bg-purple-500/30 text-purple-300 border border-[#9333EA]/40'
                         : 'bg-white/10 hover:bg-white/25 text-white'
                     }`}
                     title="React with sticker"
@@ -442,7 +442,7 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                                 setShowQuickReaction(false);
                               }}
                               className={`w-7.5 h-7.5 rounded-full flex items-center justify-center text-base hover:bg-slate-100 transition-all cursor-pointer relative ${
-                                isSelected ? 'bg-blue-100/90 ring-1 ring-[#5B9DFF]' : ''
+                                isSelected ? 'bg-purple-100/90 ring-1 ring-[#9333EA]' : ''
                               }`}
                               title={`React with ${sticker}`}
                             >
@@ -494,7 +494,7 @@ export const FullPostModal: React.FC<FullPostModalProps> = ({
                       }}
                       className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition cursor-pointer ${
                         isReacted
-                          ? 'bg-blue-500/40 text-blue-200 border border-blue-400/50'
+                          ? 'bg-purple-500/40 text-purple-200 border border-purple-400/50'
                           : 'bg-white/15 hover:bg-white/25 text-white/90'
                       }`}
                     >

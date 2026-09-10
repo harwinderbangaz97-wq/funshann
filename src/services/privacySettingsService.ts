@@ -4,10 +4,13 @@ import {
   WhoCanContactSettings,
   BlockedUserItem,
 } from '../types';
+import { db, auth } from './firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 const STORAGE_PUBLIC_PROFILE = 'funshann_public_profile_settings';
 const STORAGE_PRIVACY_CONTROLS = 'funshann_privacy_controls_settings';
 const STORAGE_WHO_CAN_CONTACT = 'funshann_who_can_contact_settings';
+const STORAGE_MESSAGING_PRIVACY = 'funshann_messaging_privacy';
 const STORAGE_BLOCKED_USERS = 'funshann_blocked_users';
 const STORAGE_SAVED_LOGIN = 'funshann_saved_login_enabled';
 const STORAGE_CONTACT_SYNC = 'funshann_contact_sync_enabled';
@@ -89,9 +92,59 @@ export const getWhoCanContact = (): WhoCanContactSettings => {
   return DEFAULT_WHO_CAN_CONTACT;
 };
 
-export const saveWhoCanContact = (settings: WhoCanContactSettings): void => {
+export const getMessagingPrivacy = (): 'everyone' | 'followers_only' | 'disabled' => {
+  try {
+    const saved = localStorage.getItem(STORAGE_MESSAGING_PRIVACY);
+    if (saved === 'everyone' || saved === 'followers_only' || saved === 'disabled') {
+      return saved;
+    }
+    const whoContact = getWhoCanContact();
+    if (whoContact.directMessages === 'following') return 'followers_only';
+    if (whoContact.directMessages === 'nobody') return 'disabled';
+    return 'everyone';
+  } catch {
+    return 'everyone';
+  }
+};
+
+export const saveMessagingPrivacy = async (
+  privacy: 'everyone' | 'followers_only' | 'disabled',
+  targetUid?: string
+): Promise<void> => {
+  try {
+    localStorage.setItem(STORAGE_MESSAGING_PRIVACY, privacy);
+
+    // Sync WhoCanContactSettings
+    const currentWho = getWhoCanContact();
+    const directMessagesVal =
+      privacy === 'followers_only' ? 'following' : privacy === 'disabled' ? 'nobody' : 'everyone';
+    saveWhoCanContact({ ...currentWho, directMessages: directMessagesVal });
+
+    // Sync Firestore doc
+    const uid = targetUid || auth.currentUser?.uid;
+    if (uid) {
+      await updateDoc(doc(db, 'users', uid), { messagingPrivacy: privacy });
+    }
+  } catch (e) {
+    console.error('Error saving messaging privacy:', e);
+  }
+};
+
+export const saveWhoCanContact = (settings: WhoCanContactSettings, targetUid?: string): void => {
   try {
     localStorage.setItem(STORAGE_WHO_CAN_CONTACT, JSON.stringify(settings));
+    const mappedPrivacy: 'everyone' | 'followers_only' | 'disabled' =
+      settings.directMessages === 'following'
+        ? 'followers_only'
+        : settings.directMessages === 'nobody'
+        ? 'disabled'
+        : 'everyone';
+    localStorage.setItem(STORAGE_MESSAGING_PRIVACY, mappedPrivacy);
+
+    const uid = targetUid || auth.currentUser?.uid;
+    if (uid) {
+      updateDoc(doc(db, 'users', uid), { messagingPrivacy: mappedPrivacy }).catch(console.warn);
+    }
   } catch (e) {
     console.error(e);
   }

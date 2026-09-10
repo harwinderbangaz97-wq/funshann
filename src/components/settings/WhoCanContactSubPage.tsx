@@ -13,6 +13,7 @@ import { WhoCanContactSettings } from '../../types';
 import {
   getWhoCanContact,
   saveWhoCanContact,
+  saveMessagingPrivacy,
 } from '../../services/privacySettingsService';
 
 interface WhoCanContactSubPageProps {
@@ -33,6 +34,17 @@ export const WhoCanContactSubPage: React.FC<WhoCanContactSubPageProps> = ({
     const updated = { ...settings, [key]: value };
     setSettings(updated);
     saveWhoCanContact(updated);
+
+    if (key === 'directMessages') {
+      const mapped =
+        value === 'everyone'
+          ? 'everyone'
+          : value === 'following'
+          ? 'followers_only'
+          : 'disabled';
+      saveMessagingPrivacy(mapped).catch(console.warn);
+    }
+
     onShowToast('Contact preference saved');
   };
 

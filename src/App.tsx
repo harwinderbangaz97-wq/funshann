@@ -481,22 +481,74 @@ function AppContent() {
     // 1. Initialize Firebase Auth Session and listen for changes
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // 1. Instantly extract displayName and photoURL directly from the authenticated Firebase user
+        const extractedName = user.displayName || user.email?.split('@')[0] || '';
+        const extractedAvatar = user.photoURL || DEFAULT_AVATAR;
+        const extractedUsername = (extractedName || `user_${user.uid.slice(0, 6)}`)
+          .toLowerCase()
+          .replace(/[^a-z0-9_]/g, '');
+
+        let cached: Partial<User> = {};
+        try {
+          const raw = localStorage.getItem('funshann_current_user');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && (parsed.id === user.uid || parsed.uid === user.uid)) {
+              cached = parsed;
+            }
+          }
+        } catch {}
+
+        const instantProfile: User = {
+          ...EMPTY_USER,
+          id: user.uid,
+          name: (cached.name && cached.name !== 'Funshann Member' && cached.name.trim())
+            ? cached.name
+            : (extractedName || 'User'),
+          username: (cached.username && cached.username !== 'user' && cached.username.trim())
+            ? cached.username
+            : extractedUsername,
+          avatar: (cached.avatar && cached.avatar !== DEFAULT_AVATAR && cached.avatar.trim())
+            ? cached.avatar
+            : extractedAvatar,
+          email: user.email || cached.email || '',
+          bio: cached.bio || 'Building real connections on Funshann 📸✨',
+          postsCount: cached.postsCount ?? 0,
+          followersCount: cached.followersCount ?? 0,
+          followingCount: cached.followingCount ?? 0,
+          isVerified: Boolean(cached.isVerified),
+        };
+
+        // Instantly display on login without fallback delay
+        setCurrentUser(instantProfile);
+        try {
+          localStorage.setItem('funshann_current_user', JSON.stringify(instantProfile));
+        } catch {}
+
         try {
           const remoteUser = await getUserProfileFromFirestore(user.uid);
           if (remoteUser) {
-            setCurrentUser((prev) => ({
-              ...prev,
+            const merged: User = {
+              ...instantProfile,
               ...remoteUser,
-              avatar: remoteUser.avatar || prev.avatar || DEFAULT_AVATAR,
-            }));
+              id: user.uid,
+              name: remoteUser.name || instantProfile.name || extractedName || 'User',
+              avatar: remoteUser.avatar || instantProfile.avatar || extractedAvatar || DEFAULT_AVATAR,
+              username: remoteUser.username || instantProfile.username || extractedUsername,
+              email: remoteUser.email || user.email || instantProfile.email || '',
+            };
+            setCurrentUser(merged);
+            try {
+              localStorage.setItem('funshann_current_user', JSON.stringify(merged));
+            } catch {}
           } else {
              // If no profile exists, ensure corresponding profile document in Firestore (users collection using user.uid)
              const newUserDoc: User = {
                id: user.uid,
-               name: user.displayName || user.email?.split('@')[0] || 'Funshann Member',
-               username: (user.displayName || user.email?.split('@')[0] || `user_${user.uid.slice(0, 6)}`).toLowerCase().replace(/[^a-z0-9_]/g, ''),
+               name: extractedName || 'User',
+               username: extractedUsername,
                email: user.email || '',
-               avatar: user.photoURL || DEFAULT_AVATAR,
+               avatar: extractedAvatar,
                bio: 'Building real connections on Funshann 📸✨',
                postsCount: 0,
                followersCount: 0,
@@ -509,20 +561,13 @@ function AppContent() {
                updatedAt: serverTimestamp(),
              }, { merge: true });
              setCurrentUser(newUserDoc);
+             try {
+               localStorage.setItem('funshann_current_user', JSON.stringify(newUserDoc));
+             } catch {}
           }
         } catch (err) {
           console.error("Auth state change profile fetch error:", err);
-          setCurrentUser((prev) => {
-            if (prev && prev.id) return prev;
-            return {
-              ...EMPTY_USER,
-              id: user.uid,
-              name: user.displayName || 'Funshann Member',
-              username: (user.displayName || user.email?.split('@')[0] || `user_${user.uid.slice(0, 6)}`).toLowerCase().replace(/[^a-z0-9_]/g, ''),
-              email: user.email || '',
-              avatar: user.photoURL || DEFAULT_AVATAR,
-            };
-          });
+          setCurrentUser(instantProfile);
         } finally {
           setIsUserDataReady(true);
         }
@@ -2346,7 +2391,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               this.setState({ hasError: false, error: null });
               this.handleReload();
             }}
-            className="px-6 py-2.5 rounded-full bg-[#5B9DFF] text-white text-xs font-bold shadow-md hover:bg-blue-600 transition active:scale-95 cursor-pointer"
+            className="px-6 py-2.5 rounded-full bg-[#9333EA] text-white text-xs font-bold shadow-md hover:bg-purple-700 transition active:scale-95 cursor-pointer"
           >
             Reload Funshann
           </button>
