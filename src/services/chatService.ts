@@ -39,7 +39,7 @@ export const normalizeMessage = (id: string, raw: any): Message => {
   const createdAt = parseTimestampToMs(raw?.createdAt || raw?.timestamp || id);
   const timestampStr = format12HourTime(createdAt);
   const isRead = Boolean(raw?.isRead || raw?.status === 'read');
-  const isDelivered = raw?.isDelivered !== undefined ? raw.isDelivered : (raw?.status === 'delivered' || raw?.status === 'read' || true);
+  const isDelivered = raw?.isDelivered !== undefined ? raw.isDelivered : (raw?.status === 'delivered' || raw?.status === 'read' || false);
   const status: 'sent' | 'delivered' | 'read' = raw?.status || (isRead ? 'read' : (isDelivered ? 'delivered' : 'sent'));
 
   return {
@@ -82,10 +82,7 @@ export const subscribeToChatMessages = (
       (snapshot) => {
         const messages: Message[] = snapshot.docs.map((docSnap) => {
           const data = docSnap.data({ serverTimestamps: 'estimate' });
-          return normalizeMessage(docSnap.id, {
-            ...data,
-            isDelivered: !snapshot.metadata.hasPendingWrites,
-          });
+          return normalizeMessage(docSnap.id, data);
         });
 
         callback(messages);
@@ -96,10 +93,7 @@ export const subscribeToChatMessages = (
           const cacheSnap = await getDocsFromCache(q);
           const messages: Message[] = cacheSnap.docs.map((docSnap) => {
             const data = docSnap.data();
-            return normalizeMessage(docSnap.id, {
-              ...data,
-              isDelivered: true,
-            });
+            return normalizeMessage(docSnap.id, data);
           });
           if (messages.length > 0) callback(messages);
         } catch {

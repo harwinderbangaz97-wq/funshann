@@ -2125,10 +2125,15 @@ export const subscribeToChatMessages = (threadId: string, callback: (messages: M
         snapshot.forEach((docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
+            const isRead = Boolean(data.isRead || data.status === 'read');
+            const isDelivered = data.isDelivered !== undefined ? Boolean(data.isDelivered) : (data.status === 'delivered' || data.status === 'read' || false);
+            const status = data.status || (isRead ? 'read' : (isDelivered ? 'delivered' : 'sent'));
             msgs.push({ 
               id: docSnap.id, 
               ...data,
-              isDelivered: !docSnap.metadata.hasPendingWrites
+              isRead,
+              isDelivered,
+              status,
             } as Message);
           }
         });
@@ -2142,10 +2147,15 @@ export const subscribeToChatMessages = (threadId: string, callback: (messages: M
           cacheSnap.forEach((docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
+              const isRead = Boolean(data.isRead || data.status === 'read');
+              const isDelivered = data.isDelivered !== undefined ? Boolean(data.isDelivered) : (data.status === 'delivered' || data.status === 'read' || false);
+              const status = data.status || (isRead ? 'read' : (isDelivered ? 'delivered' : 'sent'));
               msgs.push({ 
                 id: docSnap.id, 
                 ...data,
-                isDelivered: true
+                isRead,
+                isDelivered,
+                status,
               } as Message);
             }
           });

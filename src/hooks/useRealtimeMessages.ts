@@ -80,9 +80,10 @@ export function useRealtimeMessages({
             images: images.length > 0 ? images : undefined,
             mediaUrls: images.length > 0 ? images : undefined,
             voiceNote: data.voiceNote,
-            isRead: Boolean(data.isRead),
+            isRead: Boolean(data.isRead || data.status === 'read'),
             reactions: Array.isArray(data.reactions) ? data.reactions : [],
-            isDelivered: !snapshot.metadata.hasPendingWrites,
+            isDelivered: data.isDelivered !== undefined ? Boolean(data.isDelivered) : (data.status === 'delivered' || data.status === 'read' || false),
+            status: data.status || (Boolean(data.isRead || data.status === 'read') ? 'read' : ((data.isDelivered !== undefined ? Boolean(data.isDelivered) : (data.status === 'delivered' || data.status === 'read' || false)) ? 'delivered' : 'sent')),
             isForwarded: Boolean(data.isForwarded),
             forwardedFrom: data.forwardedFrom,
           } as Message;
