@@ -313,6 +313,7 @@ const MessageBubbleItem: React.FC<{
           isMyMessage={isMyMessage}
           isRead={msg.isRead}
           isDelivered={msg.isDelivered !== false}
+          status={msg.status}
           isForwarded={msg.isForwarded}
           forwardedFrom={msg.forwardedFrom}
           reactions={msg.reactions}
@@ -370,13 +371,13 @@ const MessageBubbleItem: React.FC<{
         <div className={`flex items-center justify-end gap-1 mt-0.5 text-[9.5px] font-medium select-none ${isMyMessage ? 'text-purple-100/90' : 'text-slate-400'}`}>
           <span>{format12HourTime(msg.createdAt || msg.timestamp)}</span>
           {isMyMessage && (
-            <span title={msg.isRead ? 'Read' : (msg.isDelivered ? 'Delivered' : 'Sent')}>
-              {msg.isRead ? (
-                <CheckCheck className="w-3 h-3 text-white" />
-              ) : msg.isDelivered ? (
-                <CheckCheck className="w-3 h-3 text-purple-200" />
+            <span title={msg.status === 'read' || msg.isRead ? 'Read' : (msg.status === 'delivered' || msg.isDelivered ? 'Delivered' : 'Sent')}>
+              {msg.status === 'read' || msg.isRead ? (
+                <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
+              ) : msg.status === 'delivered' || msg.isDelivered ? (
+                <CheckCheck className="w-3.5 h-3.5 text-purple-200" />
               ) : (
-                <Check className="w-3 h-3 text-purple-200" />
+                <Check className="w-3.5 h-3.5 text-purple-200" />
               )}
             </span>
           )}
@@ -1052,6 +1053,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const primaryImg = imgs.length > 0 ? imgs[0] : undefined;
       const textToSend = inputText.trim();
 
+      const recipientIsOnline = resolvedParticipant?.isOnline ?? false;
+      const initialStatus: 'sent' | 'delivered' = recipientIsOnline ? 'delivered' : 'sent';
+      const initialIsDelivered = recipientIsOnline;
+
       // OPTIMISTIC UI UPDATE: Immediately render message locally with 0ms perceived latency
       const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       const optimisticMsg: Message = {
@@ -1066,7 +1071,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         mediaUrls: imgs.length > 0 ? imgs : undefined,
         isRead: false,
         reactions: [],
-        isDelivered: false,
+        isDelivered: initialIsDelivered,
+        status: initialStatus,
         isVanish: isVanishMode,
         autoDelete: isVanishMode ? 'seen' : undefined,
       };
@@ -1084,6 +1090,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           images: imgs.length > 0 ? imgs : undefined,
           isVanish: isVanishMode,
           autoDelete: isVanishMode ? 'seen' : undefined,
+          status: initialStatus,
+          isDelivered: initialIsDelivered,
         }).catch(console.warn);
       }
 

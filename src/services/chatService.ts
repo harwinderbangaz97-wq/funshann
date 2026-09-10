@@ -38,6 +38,9 @@ export const getChatRoomId = (currentUserId: string, recipientId: string): strin
 export const normalizeMessage = (id: string, raw: any): Message => {
   const createdAt = parseTimestampToMs(raw?.createdAt || raw?.timestamp || id);
   const timestampStr = format12HourTime(createdAt);
+  const isRead = Boolean(raw?.isRead || raw?.status === 'read');
+  const isDelivered = raw?.isDelivered !== undefined ? raw.isDelivered : (raw?.status === 'delivered' || raw?.status === 'read' || true);
+  const status: 'sent' | 'delivered' | 'read' = raw?.status || (isRead ? 'read' : (isDelivered ? 'delivered' : 'sent'));
 
   return {
     id: id || raw?.id || `m_${Date.now()}`,
@@ -47,13 +50,14 @@ export const normalizeMessage = (id: string, raw: any): Message => {
     imageUrl: raw?.imageUrl || undefined,
     voiceNote: raw?.voiceNote || undefined,
     timestamp: timestampStr,
-    isRead: Boolean(raw?.isRead),
+    isRead,
+    isDelivered,
+    status,
     privacyMode: 'normal',
     createdAt,
     isForwarded: Boolean(raw?.isForwarded),
     forwardedFrom: raw?.forwardedFrom,
     reactions: Array.isArray(raw?.reactions) ? raw.reactions : [],
-    isDelivered: raw?.isDelivered !== undefined ? raw.isDelivered : true,
     isVanish: Boolean(raw?.isVanish),
     autoDelete: raw?.autoDelete || undefined,
   };
@@ -134,6 +138,8 @@ export const addChatMessageToFirestore = async (
     privacyMode?: MessagePrivacyMode;
     isVanish?: boolean;
     autoDelete?: 'seen' | 'off';
+    status?: 'sent' | 'delivered' | 'read';
+    isDelivered?: boolean;
   }
 ): Promise<string> => {
   if (!chatId) throw new Error('Missing chatId for addChatMessageToFirestore');
@@ -151,6 +157,8 @@ export const addChatMessageToFirestore = async (
     createdAt: serverTimestamp(),
     timestamp: serverTimestamp(),
     isRead: false,
+    isDelivered: messageData.isDelivered ?? false,
+    status: messageData.status || (messageData.isDelivered ? 'delivered' : 'sent'),
     reactions: [],
   };
 
@@ -273,9 +281,11 @@ export const markMessageAsReadInFirestore = async (
     const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
     await updateDoc(msgRef, {
       isRead: true,
+      isDelivered: true,
+      status: 'read',
       readAt: serverTimestamp(),
     }).catch(async () => {
-      await setDoc(msgRef, { isRead: true }, { merge: true });
+      await setDoc(msgRef, { isRead: true, isDelivered: true, status: 'read' }, { merge: true });
     });
   } catch (error) {
     console.warn('Error marking message as read in Firestore:', error);

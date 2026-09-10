@@ -22,6 +22,7 @@ interface MediaGridMessageProps {
   timestamp: string;
   isRead?: boolean;
   isDelivered?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
   isForwarded?: boolean;
   forwardedFrom?: string;
   text?: string;
@@ -40,6 +41,7 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
   timestamp,
   isRead = false,
   isDelivered = true,
+  status,
   isForwarded = false,
   forwardedFrom,
   text,
@@ -53,6 +55,22 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
   const isMsgSender = isSender ?? isMyMessage ?? false;
   const msgText = text || caption;
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const renderTicks = () => {
+    if (!isMsgSender) return null;
+    const resolvedStatus = status || (isRead ? 'read' : (isDelivered ? 'delivered' : 'sent'));
+    return (
+      <span title={resolvedStatus === 'read' ? 'Read' : resolvedStatus === 'delivered' ? 'Delivered' : 'Sent'}>
+        {resolvedStatus === 'read' ? (
+          <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
+        ) : resolvedStatus === 'delivered' ? (
+          <CheckCheck className="w-3.5 h-3.5 text-white/80" />
+        ) : (
+          <Check className="w-3.5 h-3.5 text-white/80" />
+        )}
+      </span>
+    );
+  };
 
   const validImages = (images || []).filter(
     (img) => typeof img === 'string' && img.trim().length > 0
@@ -160,17 +178,7 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
               {/* Floating Bottom Right Timestamp Pill */}
               <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-xs flex items-center gap-1 text-[9.5px] font-medium text-white/95 shadow-xs">
                 <span>{timestamp}</span>
-                {isMsgSender && (
-                  <span>
-                    {isRead ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
-                    ) : isDelivered ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-white/80" />
-                    ) : (
-                      <Check className="w-3.5 h-3.5 text-white/80" />
-                    )}
-                  </span>
-                )}
+                {renderTicks()}
               </div>
             </div>
           )}
@@ -203,15 +211,7 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
               {/* Floating Timestamp Pill */}
               <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-xs flex items-center gap-1 text-[9.5px] font-medium text-white/95 shadow-xs">
                 <span>{timestamp}</span>
-                {isMsgSender && (
-                  <span>
-                    {isRead ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
-                    ) : (
-                      <CheckCheck className="w-3.5 h-3.5 text-white/80" />
-                    )}
-                  </span>
-                )}
+                {renderTicks()}
               </div>
             </div>
           )}
@@ -258,15 +258,7 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
               {/* Floating Timestamp Pill */}
               <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-xs flex items-center gap-1 text-[9.5px] font-medium text-white/95 shadow-xs">
                 <span>{timestamp}</span>
-                {isMsgSender && (
-                  <span>
-                    {isRead ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
-                    ) : (
-                      <CheckCheck className="w-3.5 h-3.5 text-white/80" />
-                    )}
-                  </span>
-                )}
+                {renderTicks()}
               </div>
             </div>
           )}
@@ -313,15 +305,7 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
               {/* Floating Timestamp Pill on Bottom-Right */}
               <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur-xs flex items-center gap-1 text-[9.5px] font-medium text-white/95 shadow-xs">
                 <span>{timestamp}</span>
-                {isMsgSender && (
-                  <span>
-                    {isRead ? (
-                      <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
-                    ) : (
-                      <CheckCheck className="w-3.5 h-3.5 text-white/80" />
-                    )}
-                  </span>
-                )}
+                {renderTicks()}
               </div>
             </div>
           )}

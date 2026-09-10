@@ -172,6 +172,7 @@ export interface Message {
   timestamp: string;
   isRead: boolean;
   isDelivered?: boolean;
+  status?: 'sent' | 'delivered' | 'read';
   privacyMode?: MessagePrivacyMode;
   createdAt?: number;
   seenAt?: number;
