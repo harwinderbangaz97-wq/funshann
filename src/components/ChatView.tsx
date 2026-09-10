@@ -221,6 +221,7 @@ const MessageBubbleItem: React.FC<{
   isMyMessage: boolean;
   activeThreadId: string;
   currentUserId: string;
+  isOnline: boolean;
   onOpenContextMenu: (msg: Message) => void;
   onForward?: (msg: Message) => void;
   onImageClick: (url: string) => void;
@@ -229,6 +230,7 @@ const MessageBubbleItem: React.FC<{
   msg,
   isMyMessage,
   currentUserId,
+  isOnline,
   onOpenContextMenu,
   onForward,
   onImageClick,
@@ -312,7 +314,7 @@ const MessageBubbleItem: React.FC<{
           timestamp={msg.timestamp || format12HourTime(msg.createdAt)}
           isMyMessage={isMyMessage}
           isRead={msg.isRead}
-          isDelivered={msg.isDelivered !== false}
+          isDelivered={isOnline}
           status={msg.status}
           isForwarded={msg.isForwarded}
           forwardedFrom={msg.forwardedFrom}
@@ -371,10 +373,10 @@ const MessageBubbleItem: React.FC<{
         <div className={`flex items-center justify-end gap-1 mt-0.5 text-[9.5px] font-medium select-none ${isMyMessage ? 'text-purple-100/90' : 'text-slate-400'}`}>
           <span>{format12HourTime(msg.createdAt || msg.timestamp)}</span>
           {isMyMessage && (
-            <span title={msg.status === 'read' || msg.isRead ? 'Read' : (msg.status === 'delivered' || msg.isDelivered ? 'Delivered' : 'Sent')}>
+            <span title={msg.status === 'read' || msg.isRead ? 'Read' : (isOnline ? 'Delivered' : 'Sent')}>
               {msg.status === 'read' || msg.isRead ? (
                 <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
-              ) : msg.status === 'delivered' || msg.isDelivered ? (
+              ) : isOnline ? (
                 <CheckCheck className="w-3.5 h-3.5 text-purple-200" />
               ) : (
                 <Check className="w-3.5 h-3.5 text-purple-200" />
@@ -1652,6 +1654,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       isMyMessage={m.senderId === (currentUser.uid || currentUser.id)}
                       activeThreadId={activeThread.id}
                       currentUserId={currentUser.uid || currentUser.id || ''}
+                      isOnline={Boolean(activeThread.isGroup || resolvedParticipant?.isOnline)}
                       onOpenContextMenu={setContextMessage}
                       onForward={setForwardTargetMessage}
                       onImageClick={setLightboxImage}
