@@ -95,6 +95,7 @@ import {
   checkUserExists,
   isPostByUserId,
   getUserPostsCountFromFirestore,
+  updateUserInFirestore,
 } from './services/firebase';
 import {
   sendChatMessage,
@@ -183,6 +184,29 @@ function AppContent() {
     }
     return EMPTY_USER;
   });
+
+  useEffect(() => {
+    if (!currentUser || !currentUser.id) return;
+
+    // Set online status to true
+    updateUserInFirestore(currentUser.id, { isOnline: true, lastActive: serverTimestamp() }).catch(console.warn);
+
+    // Heartbeat every 30 seconds
+    const interval = setInterval(() => {
+      updateUserInFirestore(currentUser.id, { isOnline: true, lastActive: serverTimestamp() }).catch(console.warn);
+    }, 30000);
+
+    const handleBeforeUnload = () => {
+      updateUserInFirestore(currentUser.id, { isOnline: false, lastActive: serverTimestamp() }).catch(console.warn);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      updateUserInFirestore(currentUser.id, { isOnline: false, lastActive: serverTimestamp() }).catch(console.warn);
+    };
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (!currentUser || !currentUser.id) return;
