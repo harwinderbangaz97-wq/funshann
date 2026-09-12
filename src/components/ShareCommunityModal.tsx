@@ -290,13 +290,18 @@ export const ShareCommunityModal: React.FC<ShareCommunityModalProps> = ({
                       <button
                         onClick={() => handleSendToUser(user.id, user.name)}
                         disabled={isSent}
-                        className={`mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full transition cursor-pointer ${
+                        className={`mt-1 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all shadow-xs cursor-pointer ${
                           isSent
-                            ? 'bg-emerald-100 text-emerald-700 font-semibold'
-                            : 'bg-[#5B9DFF]/15 text-[#5B9DFF] hover:bg-[#5B9DFF] hover:text-white'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-white text-slate-700 neu-raised hover:text-[#5B9DFF]'
                         }`}
                       >
-                        {isSent ? 'Sent' : 'Send'}
+                        <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border transition-colors ${
+                          isSent ? 'bg-white text-emerald-600 border-white' : 'border-slate-300 text-transparent bg-slate-50'
+                        }`}>
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </div>
+                        <span>{isSent ? 'Sent' : 'Send'}</span>
                       </button>
                     </div>
                   );
