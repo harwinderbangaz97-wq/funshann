@@ -25,21 +25,9 @@ import {
 } from './data/messagePrivacyService';
 import { getIndividualChatSettings } from './services/individualChatSettingsService';
 import { TopAppBar } from './components/TopAppBar';
-import { StoriesSection } from './components/StoriesSection';
-import { FeedCard } from './components/FeedCard';
 import { BottomNavigation } from './components/BottomNavigation';
-import { SearchPeopleView } from './components/SearchPeopleView';
-import { UploadMediaModal } from './components/UploadMediaModal';
-import { ChatView } from './components/ChatView';
-import { ProfileView } from './components/ProfileView';
-import { StoryViewerModal } from './components/StoryViewerModal';
-import { CreateStoryModal } from './components/CreateStoryModal';
-import { CommentsModal } from './components/CommentsModal';
-import { ShareSheetModal } from './components/ShareSheetModal';
-import { NotificationDrawer } from './components/NotificationDrawer';
-import { FullPostModal } from './components/FullPostModal';
 import { DeviceFrame } from './components/DeviceFrame';
-import { SettingsModal, SettingsSection } from './components/SettingsModal';
+import type { SettingsSection } from './components/SettingsModal';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { PermissionAndMediaProvider, usePermissionAndMedia } from './context/PermissionAndMediaContext';
 import { LanguageProvider, useTranslation } from './context/LanguageContext';
@@ -112,11 +100,19 @@ import {
   formatDetailed12HourTime,
 } from './services/timeUtils';
 
-import { HomeTab } from './components/tabs/HomeTab';
-import { SearchTab } from './components/tabs/SearchTab';
-import { UploadTab } from './components/tabs/UploadTab';
-import { ChatTab } from './components/tabs/ChatTab';
-import { ProfileTab } from './components/tabs/ProfileTab';
+const HomeTab = React.lazy(() => import('./components/tabs/HomeTab').then(m => ({ default: m.HomeTab })));
+const SearchTab = React.lazy(() => import('./components/tabs/SearchTab').then(m => ({ default: m.SearchTab })));
+const UploadTab = React.lazy(() => import('./components/tabs/UploadTab').then(m => ({ default: m.UploadTab })));
+const ChatTab = React.lazy(() => import('./components/tabs/ChatTab').then(m => ({ default: m.ChatTab })));
+const ProfileTab = React.lazy(() => import('./components/tabs/ProfileTab').then(m => ({ default: m.ProfileTab })));
+
+const StoryViewerModal = React.lazy(() => import('./components/StoryViewerModal').then(m => ({ default: m.StoryViewerModal })));
+const CommentsModal = React.lazy(() => import('./components/CommentsModal').then(m => ({ default: m.CommentsModal })));
+const ShareSheetModal = React.lazy(() => import('./components/ShareSheetModal').then(m => ({ default: m.ShareSheetModal })));
+const NotificationDrawer = React.lazy(() => import('./components/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
+const FullPostModal = React.lazy(() => import('./components/FullPostModal').then(m => ({ default: m.FullPostModal })));
+const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const CreateStoryModal = React.lazy(() => import('./components/CreateStoryModal').then(m => ({ default: m.CreateStoryModal })));
 
 const EMPTY_USER: User = {
   id: '',
@@ -2143,8 +2139,15 @@ function AppContent() {
 
       {/* Main Tab Views */}
       <main className="w-full flex-1">
-        {activeTab === 'home' && (
-          <HomeTab
+        <Suspense
+          fallback={
+            <div className="w-full flex items-center justify-center py-20">
+              <Loader2 className="w-7 h-7 text-[#5B9DFF] animate-spin" />
+            </div>
+          }
+        >
+          {activeTab === 'home' && (
+            <HomeTab
               stories={stories}
               currentUser={currentUser}
               posts={posts}
@@ -2257,6 +2260,7 @@ function AppContent() {
               onUpdateCaption={handleUpdateCaption}
             />
           )}
+        </Suspense>
       </main>
 
           {/* Floating Bottom Navigation (Hidden when in full-screen ChatActivity) */}
@@ -2270,123 +2274,125 @@ function AppContent() {
             />
           )}
 
-          {/* Interactive Story Viewer Modal */}
-          {navState.selectedStoryIndex !== null && (
-            <StoryViewerModal
-              stories={stories}
-              initialIndex={navState.selectedStoryIndex}
-              isOpen={navState.selectedStoryIndex !== null}
+          <Suspense fallback={null}>
+            {/* Interactive Story Viewer Modal */}
+            {navState.selectedStoryIndex !== null && (
+              <StoryViewerModal
+                stories={stories}
+                initialIndex={navState.selectedStoryIndex}
+                isOpen={navState.selectedStoryIndex !== null}
+                currentUser={currentUser}
+                allUsers={users}
+                onClose={closeStoryViewer}
+                onSendReply={(storyUserId, text) => {
+                  handleSendMessage(storyUserId, text);
+                  showToast('Reply sent to direct messages!');
+                  closeStoryViewer();
+                }}
+                onUserClick={handleOpenProfile}
+                onToggleLike={handleToggleLikeStory}
+                onStoryView={handleStoryView}
+              />
+            )}
+
+            {/* Comments Drawer Modal */}
+            <CommentsModal
+              post={navState.activeCommentPost}
               currentUser={currentUser}
-              allUsers={users}
-              onClose={closeStoryViewer}
-              onSendReply={(storyUserId, text) => {
-                handleSendMessage(storyUserId, text);
-                showToast('Reply sent to direct messages!');
-                closeStoryViewer();
-              }}
+              isOpen={navState.activeCommentPost !== null}
+              onClose={closeComments}
+              onAddComment={handleAddComment}
               onUserClick={handleOpenProfile}
-              onToggleLike={handleToggleLikeStory}
-              onStoryView={handleStoryView}
+              onShowToast={showToast}
             />
-          )}
 
-          {/* Comments Drawer Modal */}
-          <CommentsModal
-            post={navState.activeCommentPost}
-            currentUser={currentUser}
-            isOpen={navState.activeCommentPost !== null}
-            onClose={closeComments}
-            onAddComment={handleAddComment}
-            onUserClick={handleOpenProfile}
-            onShowToast={showToast}
-          />
+            {/* Share Sheet Modal */}
+            <ShareSheetModal
+              post={navState.activeSharePost}
+              users={users}
+              isOpen={navState.activeSharePost !== null}
+              onClose={closeShareSheet}
+              onSendToContact={(userName) => {
+                showToast(`Shared post with ${userName}!`);
+              }}
+            />
 
-          {/* Share Sheet Modal */}
-          <ShareSheetModal
-            post={navState.activeSharePost}
-            users={users}
-            isOpen={navState.activeSharePost !== null}
-            onClose={closeShareSheet}
-            onSendToContact={(userName) => {
-              showToast(`Shared post with ${userName}!`);
-            }}
-          />
+            {/* Notification Drawer */}
+            <NotificationDrawer
+              notifications={notifications}
+              isOpen={navState.isNotificationOpen}
+              onClose={closeNotifications}
+              onMarkAllRead={() => {
+                setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+                showToast('All notifications marked as read');
+              }}
+              onNotificationClick={handleNotificationClick}
+              onViewPost={handleExplicitViewPost}
+              onViewComments={handleExplicitViewComments}
+              onOpenProfile={handleExplicitOpenProfile}
+              onOpenChat={handleExplicitOpenChat}
+            />
 
-          {/* Notification Drawer */}
-          <NotificationDrawer
-            notifications={notifications}
-            isOpen={navState.isNotificationOpen}
-            onClose={closeNotifications}
-            onMarkAllRead={() => {
-              setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-              showToast('All notifications marked as read');
-            }}
-            onNotificationClick={handleNotificationClick}
-            onViewPost={handleExplicitViewPost}
-            onViewComments={handleExplicitViewComments}
-            onOpenProfile={handleExplicitOpenProfile}
-            onOpenChat={handleExplicitOpenChat}
-          />
+            {/* Settings & Preferences Modal */}
+            <SettingsModal
+              isOpen={navState.isSettingsOpen}
+              initialSection={navState.settingsSection || 'main'}
+              currentUser={currentUser}
+              onClose={closeSettings}
+              onUpdateUser={(updated) => {
+                setCurrentUser((prev) => ({ ...prev, ...updated }));
+              }}
+              onShowToast={showToast}
+              onResetData={() => {
+                setCurrentUser(EMPTY_USER);
+              }}
+              users={users}
+              chatThreads={chatThreads}
+              onDeleteChatThreads={(ids) => {
+                setChatThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
+              }}
+              lockedChatUserIds={lockedChatUserIds}
+              chatLockPasscode={chatLockPasscode}
+              isChatLockEnabled={isChatLockEnabled}
+              onUpdateLockedChatUserIds={handleUpdateLockedChatUserIds}
+              onUpdateChatLockPasscode={handleUpdateChatLockPasscode}
+              onUpdateChatLockEnabled={handleUpdateChatLockEnabled}
+              theme={theme}
+              onUpdateTheme={handleUpdateTheme}
+              onLogout={handleLogout}
+              permissionsState={permissionsState}
+              onUpdatePermissions={setAllPermissions}
+            />
 
-          {/* Settings & Preferences Modal */}
-          <SettingsModal
-            isOpen={navState.isSettingsOpen}
-            initialSection={navState.settingsSection || 'main'}
-            currentUser={currentUser}
-            onClose={closeSettings}
-            onUpdateUser={(updated) => {
-              setCurrentUser((prev) => ({ ...prev, ...updated }));
-            }}
-            onShowToast={showToast}
-            onResetData={() => {
-              setCurrentUser(EMPTY_USER);
-            }}
-            users={users}
-            chatThreads={chatThreads}
-            onDeleteChatThreads={(ids) => {
-              setChatThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
-            }}
-            lockedChatUserIds={lockedChatUserIds}
-            chatLockPasscode={chatLockPasscode}
-            isChatLockEnabled={isChatLockEnabled}
-            onUpdateLockedChatUserIds={handleUpdateLockedChatUserIds}
-            onUpdateChatLockPasscode={handleUpdateChatLockPasscode}
-            onUpdateChatLockEnabled={handleUpdateChatLockEnabled}
-            theme={theme}
-            onUpdateTheme={handleUpdateTheme}
-            onLogout={handleLogout}
-            permissionsState={permissionsState}
-            onUpdatePermissions={setAllPermissions}
-          />
+            {/* Add / Create Story Modal */}
+            <CreateStoryModal
+              isOpen={isCreatingStory}
+              onClose={() => setIsCreatingStory(false)}
+              currentUser={currentUser}
+              onPublishStory={handlePublishStory}
+              onShowToast={showToast}
+            />
 
-          {/* Add / Create Story Modal */}
-          <CreateStoryModal
-            isOpen={isCreatingStory}
-            onClose={() => setIsCreatingStory(false)}
-            currentUser={currentUser}
-            onPublishStory={handlePublishStory}
-            onShowToast={showToast}
-          />
-
-          {/* Full Post View Modal with Android Back and In-Screen Back Support */}
-          <FullPostModal
-            post={posts.find((p) => p.id === navState.previewPost?.id) || navState.previewPost}
-            currentUser={currentUser}
-            isOpen={navState.previewPost !== null}
-            onClose={closePostPreview}
-            onLike={handleLikePost}
-            onDislike={handleDislikePost}
-            onReact={handleReaction}
-            onEmojiReact={handleEmojiReaction}
-            onAddComment={handleAddComment}
-            onShareClick={(p) => openShareSheet(p)}
-            onUserClick={handleOpenProfile}
-            onToggleSave={handleToggleSavePost}
-            onDeletePost={handleDeletePost}
-            onHidePost={handleHidePost}
-            onUpdateCaption={handleUpdateCaption}
-            onShowToast={showToast}
-          />
+            {/* Full Post View Modal with Android Back and In-Screen Back Support */}
+            <FullPostModal
+              post={posts.find((p) => p.id === navState.previewPost?.id) || navState.previewPost}
+              currentUser={currentUser}
+              isOpen={navState.previewPost !== null}
+              onClose={closePostPreview}
+              onLike={handleLikePost}
+              onDislike={handleDislikePost}
+              onReact={handleReaction}
+              onEmojiReact={handleEmojiReaction}
+              onAddComment={handleAddComment}
+              onShareClick={(p) => openShareSheet(p)}
+              onUserClick={handleOpenProfile}
+              onToggleSave={handleToggleSavePost}
+              onDeletePost={handleDeletePost}
+              onHidePost={handleHidePost}
+              onUpdateCaption={handleUpdateCaption}
+              onShowToast={showToast}
+            />
+          </Suspense>
           </DeviceFrame>
         )
       )}

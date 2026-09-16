@@ -10,8 +10,8 @@ if (!fs.existsSync(distDir)) {
 }
 
 const files = fs.readdirSync(assetsDir);
-const cssFile = files.find(f => f.endsWith('.css'));
-const jsFile = files.find(f => f.endsWith('.js'));
+const cssFile = files.find(f => f.startsWith('index') && f.endsWith('.css')) || files.find(f => f.endsWith('.css'));
+const jsFile = files.find(f => f.startsWith('index') && f.endsWith('.js')) || files.find(f => f.endsWith('.js'));
 
 if (!cssFile || !jsFile) {
   console.error('Could not find CSS or JS bundle in dist/assets');

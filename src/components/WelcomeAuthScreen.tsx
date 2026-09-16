@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User as UserIcon,
@@ -17,7 +17,10 @@ import {
   Copy,
 } from 'lucide-react';
 import { User, ThemeMode } from '../types';
-import { LegalDocumentsSubPage } from './settings/LegalDocumentsSubPage';
+
+const LegalDocumentsSubPage = React.lazy(() =>
+  import('./settings/LegalDocumentsSubPage').then((m) => ({ default: m.LegalDocumentsSubPage }))
+);
 import {
   syncUserProfileToFirestore,
   getUserProfileFromFirestore,
@@ -1259,10 +1262,18 @@ export const WelcomeAuthScreen: React.FC<WelcomeAuthScreenProps> = ({
               </div>
 
               <div className="py-2 flex-1 overflow-y-auto">
-                <LegalDocumentsSubPage
-                  documentType={activeLegalModal === 'terms' ? 'terms_of_service' : 'privacy_policy'}
-                  onShowToast={() => {}}
-                />
+                <Suspense
+                  fallback={
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-6 h-6 animate-spin text-[#2563EB]" />
+                    </div>
+                  }
+                >
+                  <LegalDocumentsSubPage
+                    documentType={activeLegalModal === 'terms' ? 'terms_of_service' : 'privacy_policy'}
+                    onShowToast={() => {}}
+                  />
+                </Suspense>
               </div>
 
               <button
