@@ -34,6 +34,7 @@ import {
   MessageSquareOff,
 } from 'lucide-react';
 import { User } from '../types';
+import { isUserOnline, getUserPresenceLabel } from '../services/timeUtils';
 import {
   AutoDeleteDuration,
   MuteDuration,
@@ -284,7 +285,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                     alt={user.name}
                     className="w-full h-full rounded-full object-cover"
                   />
-                  {user.isOnline && (
+                  {isUserOnline(user) && (
                     <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[#5B9DFF] ring-1.5 ring-white" />
                   )}
                 </div>
@@ -304,10 +305,20 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                     ? 'Media Visibility'
                     : 'Notification'}
                 </h3>
-                <p className="text-[11.5px] text-slate-400 font-medium truncate">
-                  {currentScreen === 'main'
-                    ? `@${user.username}`
-                    : `Settings for ${user.name}`}
+                <p className="text-[11.5px] text-slate-400 font-medium truncate flex items-center gap-1.5">
+                  <span>
+                    {currentScreen === 'main'
+                      ? `@${user.username}`
+                      : `Settings for ${user.name}`}
+                  </span>
+                  {currentScreen === 'main' && (
+                    <>
+                      <span>•</span>
+                      <span className={isUserOnline(user) ? 'text-[#5B9DFF] font-semibold' : 'text-slate-400'}>
+                        {getUserPresenceLabel(user)}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -334,12 +345,12 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                   onClick={() => setCurrentScreen('vanish_mode')}
                   className={`w-full h-12 px-3.5 rounded-[18px] text-left text-[14px] font-bold flex items-center justify-between transition cursor-pointer ${
                     chatSettings.vanishMode
-                      ? 'bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-blue-500/10 border border-purple-300 text-purple-900 shadow-xs'
-                      : 'text-slate-800 hover:bg-purple-50/70 hover:text-purple-700'
+                      ? 'bg-gradient-to-r from-blue-500/15 via-indigo-500/10 to-blue-500/10 border border-blue-300 text-blue-900 shadow-xs'
+                      : 'text-slate-800 hover:bg-blue-50/70 hover:text-blue-700'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center ${chatSettings.vanishMode ? 'bg-purple-600 text-white shadow-xs' : 'neu-raised text-purple-600'}`}>
+                    <div className={`w-8.5 h-8.5 rounded-full flex items-center justify-center ${chatSettings.vanishMode ? 'bg-[#5B9DFF] text-white shadow-xs' : 'neu-raised text-[#5B9DFF]'}`}>
                       <EyeOff className="w-4.5 h-4.5" />
                     </div>
                     <div>
@@ -348,7 +359,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                   </div>
                   <div className="flex items-center gap-1.5">
                     {chatSettings.vanishMode ? (
-                      <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-purple-600 text-white flex items-center gap-1 animate-pulse">
+                      <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#5B9DFF] text-white flex items-center gap-1 animate-pulse">
                         <Sparkles className="w-3 h-3" />
                         <span>ACTIVE</span>
                       </span>
@@ -878,22 +889,22 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
             {/* VANISH MODE SUBMENU */}
             {currentScreen === 'vanish_mode' && (
               <div className="space-y-4">
-                <div className="p-4 rounded-[22px] bg-gradient-to-br from-purple-500/15 via-indigo-500/10 to-blue-500/10 border border-purple-200/80 space-y-3">
+                <div className="p-4 rounded-[22px] bg-gradient-to-br from-blue-500/15 via-indigo-500/10 to-blue-500/10 border border-blue-200/80 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-md">
+                      <div className="w-10 h-10 rounded-full bg-[#5B9DFF] text-white flex items-center justify-center shadow-md">
                         <EyeOff className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="text-[14px] font-bold text-purple-950">Vanish Mode</h4>
-                        <p className="text-[11px] text-purple-700 font-medium">Ephemeral & Private Chat</p>
+                        <h4 className="text-[14px] font-bold text-blue-950">Vanish Mode</h4>
+                        <p className="text-[11px] text-blue-700 font-medium">Ephemeral & Private Chat</p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={handleToggleVanishMode}
                       className={`w-12 h-7 rounded-full p-0.5 transition-colors cursor-pointer ${
-                        chatSettings.vanishMode ? 'bg-purple-600' : 'bg-slate-300'
+                        chatSettings.vanishMode ? 'bg-[#5B9DFF]' : 'bg-slate-300'
                       }`}
                     >
                       <div
@@ -904,7 +915,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                     </button>
                   </div>
 
-                  <p className="text-[12px] text-slate-600 leading-relaxed bg-white/80 p-3 rounded-[16px] border border-purple-100">
+                  <p className="text-[12px] text-slate-600 leading-relaxed bg-white/80 p-3 rounded-[16px] border border-blue-100">
                     When Vanish Mode is active, sent and received messages will automatically disappear from both sides after they have been opened and read, or immediately when you exit the chat.
                   </p>
                 </div>
@@ -913,15 +924,15 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                   <h5 className="text-[12px] font-bold text-slate-700 px-1">How Vanish Mode Works:</h5>
                   <div className="space-y-2 text-[12px] text-slate-600">
                     <div className="p-3 rounded-2xl neu-inset flex items-start gap-2.5">
-                      <Check className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <Check className="w-4 h-4 text-[#5B9DFF] mt-0.5 flex-shrink-0" />
                       <span>Messages self-destruct once read by the recipient.</span>
                     </div>
                     <div className="p-3 rounded-2xl neu-inset flex items-start gap-2.5">
-                      <Check className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                      <span>Active purple aura and top banner indicates Vanish Mode is ON.</span>
+                      <Check className="w-4 h-4 text-[#5B9DFF] mt-0.5 flex-shrink-0" />
+                      <span>Active glowing aura and top banner indicates Vanish Mode is ON.</span>
                     </div>
                     <div className="p-3 rounded-2xl neu-inset flex items-start gap-2.5">
-                      <Check className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <Check className="w-4 h-4 text-[#5B9DFF] mt-0.5 flex-shrink-0" />
                       <span>All ephemeral vanish history is cleared when exiting.</span>
                     </div>
                   </div>
@@ -933,7 +944,7 @@ export const IndividualUserMenu: React.FC<IndividualUserMenuProps> = ({
                   className={`w-full h-11 rounded-full text-xs font-bold transition shadow-sm cursor-pointer ${
                     chatSettings.vanishMode
                       ? 'bg-slate-800 text-white hover:bg-slate-900'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-[#5B9DFF] text-white hover:bg-blue-600'
                   }`}
                 >
                   {chatSettings.vanishMode ? 'Turn Off Vanish Mode' : 'Turn On Vanish Mode'}

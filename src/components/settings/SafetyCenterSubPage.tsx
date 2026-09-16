@@ -197,7 +197,7 @@ export const SafetyCenterSubPage: React.FC<SafetyCenterSubPageProps> = ({
       id: 'harassment',
       title: '6. Anti-Harassment & Bullying Rules',
       icon: Shield,
-      color: 'text-purple-600',
+      color: 'text-[#5B9DFF]',
       badge: 'Zero Tolerance',
       content: (
         <div className="space-y-2 text-xs text-slate-600 leading-relaxed">
@@ -210,7 +210,7 @@ export const SafetyCenterSubPage: React.FC<SafetyCenterSubPageProps> = ({
           {onOpenCommunityGuidelines && (
             <button
               onClick={onOpenCommunityGuidelines}
-              className="text-[11px] font-bold text-purple-600 hover:underline flex items-center gap-1"
+              className="text-[11px] font-bold text-[#5B9DFF] hover:underline flex items-center gap-1"
             >
               <span>Read Funshann Community Guidelines</span>
               <ExternalLink className="w-3 h-3" />

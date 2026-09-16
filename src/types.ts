@@ -204,6 +204,8 @@ export interface ChatThread {
     voiceDuration?: number;
     timestamp: string;
     isRead: boolean;
+    status?: 'sent' | 'delivered' | 'read';
+    seenAt?: number;
     senderId?: string;
     senderName?: string;
   };

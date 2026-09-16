@@ -3,6 +3,7 @@ import { Search, CheckCircle2, UserPlus, UserCheck, MessageSquare, MapPin, Spark
 import { motion } from 'motion/react';
 import { User } from '../types';
 import { useTranslation } from '../context/LanguageContext';
+import { isUserOnline } from '../services/timeUtils';
 
 interface SearchPeopleViewProps {
   users: User[];
@@ -225,7 +226,7 @@ const SearchPeopleViewComponent: React.FC<SearchPeopleViewProps> = ({
                         decoding="async"
                         className="w-full h-full rounded-full object-cover"
                       />
-                      {user.isOnline && (
+                      {isUserOnline(user) && (
                         <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#5B9DFF] ring-2 ring-white" />
                       )}
                     </div>

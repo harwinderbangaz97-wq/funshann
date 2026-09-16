@@ -31,7 +31,6 @@ import {
   getDocs,
   getDocFromCache,
   getDocsFromCache,
-  getDocFromServer,
   deleteDoc,
   updateDoc,
   runTransaction,
@@ -116,7 +115,7 @@ export const db = (() => {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
       },
       customDatabaseId
     );
@@ -130,20 +129,6 @@ export const db = (() => {
     }
   }
 })();
-
-// Validate initial connection as recommended by Firebase SDK guidelines
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore offline fallback active.');
-    }
-  }
-}
-if (typeof window !== 'undefined') {
-  testConnection().catch(() => {});
-}
 
 export enum OperationType {
   CREATE = 'create',
@@ -797,6 +782,49 @@ export const normalizeUser = (u: any): User => {
     || authFallbackAvatar
     || DEFAULT_AVATAR;
 
+  // Resolve presence and heartbeat freshness (heartbeats sent every 30s)
+  const now = Date.now();
+  const rawLastActive = u.lastActive ?? u.lastSeen ?? u.updatedAt ?? u.createdAt ?? null;
+  let lastActiveMs: number | null = null;
+  if (rawLastActive !== null && rawLastActive !== undefined) {
+    try {
+      lastActiveMs = parseTimestampToMs(rawLastActive);
+    } catch {
+      lastActiveMs = null;
+    }
+  }
+
+  // Determine true online status:
+  // Must be marked isOnline AND have sent a heartbeat within the last 90 seconds.
+  // If the browser/tab closed or network died without firing beforeunload, this prevents stale "online" display.
+  let computedIsOnline = Boolean(u.isOnline);
+  if (isCurrentAuth) {
+    computedIsOnline = true;
+    if (!lastActiveMs) lastActiveMs = now;
+  } else if (computedIsOnline) {
+    if (lastActiveMs) {
+      // Offline if heartbeat is older than 90 seconds
+      if (now - lastActiveMs > 90 * 1000) {
+        computedIsOnline = false;
+      }
+    } else {
+      computedIsOnline = false;
+    }
+  }
+
+  // Ensure offline users have a valid timestamp for displaying "last seen [time]"
+  if (!lastActiveMs) {
+    const fallback = u.createdAt ?? u.registrationDate;
+    if (fallback) {
+      try {
+        lastActiveMs = parseTimestampToMs(fallback);
+      } catch {}
+    }
+    if (!lastActiveMs) {
+      lastActiveMs = now - (15 * 60 * 1000); // 15 minutes ago default
+    }
+  }
+
   return {
     id: u.id || u.userId || (isCurrentAuth && currentAuthUser ? currentAuthUser.uid : 'user'),
     name: resolvedName,
@@ -816,8 +844,9 @@ export const normalizeUser = (u: any): User => {
     following: Array.isArray(u.following) ? u.following : [],
     isVerified: Boolean(u.isVerified),
     isFollowing: Boolean(u.isFollowing),
-    isOnline: Boolean(u.isOnline),
-    lastSeen: u.lastSeen ?? null,
+    isOnline: computedIsOnline,
+    lastSeen: lastActiveMs,
+    lastActive: lastActiveMs,
     role: u.role || 'user',
     status: u.status || 'active',
     registrationDate: u.registrationDate || '',
@@ -2622,6 +2651,37 @@ export const updateUserInFirestore = async (userId: string, data: Partial<User>)
     await setDoc(userRef, data, { merge: true });
   } catch (error) {
     console.warn('Failed to update user in Firestore:', error);
+  }
+};
+
+/**
+ * Real-time listener for a single user's profile and presence status (isOnline, lastActive, lastSeen)
+ */
+export const subscribeToUser = (userId: string, callback: (user: User | null) => void): (() => void) => {
+  if (!userId) {
+    callback(null);
+    return () => {};
+  }
+  try {
+    const userRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const u = normalizeUser({ ...snapshot.data(), id: snapshot.id });
+          callback(u);
+        } else {
+          callback(null);
+        }
+      },
+      (error) => {
+        console.warn('subscribeToUser error:', error);
+      }
+    );
+    return unsubscribe;
+  } catch (err) {
+    console.warn('subscribeToUser setup error:', err);
+    return () => {};
   }
 };
 

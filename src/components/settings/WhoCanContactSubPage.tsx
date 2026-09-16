@@ -99,7 +99,7 @@ export const WhoCanContactSubPage: React.FC<WhoCanContactSubPageProps> = ({
       {/* 2. Voice Notes Permissions */}
       <div className="neu-flat rounded-[24px] p-4.5 space-y-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-purple-500">
+          <div className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF]">
             <Mic className="w-5 h-5" />
           </div>
           <div>

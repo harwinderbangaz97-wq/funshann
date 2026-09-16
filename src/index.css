@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #9333EA;
-  --color-primary-50: #F5F3FF;
-  --color-primary-100: #EDE9FE;
-  --color-primary-200: #DDD6FE;
-  --color-primary-300: #C4B5FD;
-  --color-primary-400: #A78BFA;
-  --color-primary-500: #A855F7;
-  --color-primary-600: #9333EA;
-  --color-primary-700: #7E22CE;
-  --color-primary-800: #6B21A8;
-  --color-primary-900: #581C87;
-  --color-primary-950: #3B0764;
-  --color-electric-purple: #9333EA;
-  --color-vivid-purple: #8A2BE2;
+  --color-primary: #5B9DFF;
+  --color-primary-50: #EFF6FF;
+  --color-primary-100: #DBEAFE;
+  --color-primary-200: #BFDBFE;
+  --color-primary-300: #93C5FD;
+  --color-primary-400: #60A5FA;
+  --color-primary-500: #3B82F6;
+  --color-primary-600: #2563EB;
+  --color-primary-700: #1D4ED8;
+  --color-primary-800: #1E40AF;
+  --color-primary-900: #1E3A8A;
+  --color-primary-950: #172554;
+  --color-electric-blue: #5B9DFF;
+  --color-vivid-blue: #3B82F6;
 }
 
 :root {
-  --primary: #9333EA;
-  --primary-hover: #7E22CE;
-  --primary-light: #F5F3FF;
-  --primary-border: #EDE9FE;
-  --brand-purple: #9333EA;
-  --electric-purple: #9333EA;
+  --primary: #5B9DFF;
+  --primary-hover: #4A8CFF;
+  --primary-light: #EFF6FF;
+  --primary-border: #DBEAFE;
+  --brand-blue: #5B9DFF;
+  --electric-blue: #5B9DFF;
 }
 
 @layer base {
@@ -115,31 +115,31 @@ video::-webkit-media-controls-enclosure {
 }
 
 .neu-active-blue {
-  background: #9333EA;
-  box-shadow: 0 6px 18px rgba(147, 51, 234, 0.45), inset 1px 1px 2px rgba(255, 255, 255, 0.4);
+  background: #5B9DFF;
+  box-shadow: 0 6px 18px rgba(91, 157, 255, 0.4), inset 1px 1px 2px rgba(255, 255, 255, 0.4);
 }
 
 .neu-active-blue-soft {
-  background: #F5F3FF;
-  box-shadow: 5px 5px 14px rgba(147, 51, 234, 0.2), -4px -4px 12px #ffffff;
-  border: 1.5px solid #EDE9FE;
+  background: #EFF6FF;
+  box-shadow: 5px 5px 14px rgba(91, 157, 255, 0.15), -4px -4px 12px #ffffff;
+  border: 1.5px solid #DBEAFE;
 }
 
 .neu-active-purple {
-  background: #9333EA;
-  box-shadow: 0 6px 18px rgba(147, 51, 234, 0.45), inset 1px 1px 2px rgba(255, 255, 255, 0.4);
+  background: #5B9DFF;
+  box-shadow: 0 6px 18px rgba(91, 157, 255, 0.4), inset 1px 1px 2px rgba(255, 255, 255, 0.4);
 }
 
 .neu-active-purple-soft {
-  background: #F5F3FF;
-  box-shadow: 5px 5px 14px rgba(147, 51, 234, 0.2), -4px -4px 12px #ffffff;
-  border: 1.5px solid #EDE9FE;
+  background: #EFF6FF;
+  box-shadow: 5px 5px 14px rgba(91, 157, 255, 0.15), -4px -4px 12px #ffffff;
+  border: 1.5px solid #DBEAFE;
 }
 
 .neu-card-purple {
-  background: #F5F3FF;
-  border: 1px solid #EDE9FE;
-  box-shadow: 4px 4px 12px rgba(147, 51, 234, 0.08), -4px -4px 12px rgba(255, 255, 255, 0.95);
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
+  box-shadow: 4px 4px 12px rgba(91, 157, 255, 0.08), -4px -4px 12px rgba(255, 255, 255, 0.95);
 }
 
 .neu-floating-bar {
@@ -206,8 +206,8 @@ video::-webkit-media-controls-enclosure {
 
 [data-theme="dark"] .neu-active-blue,
 [data-theme="dark"] .neu-active-purple {
-  background: #9333EA !important;
-  box-shadow: 0 6px 20px rgba(147, 51, 234, 0.55), inset 1px 1px 2px rgba(255, 255, 255, 0.3);
+  background: #5B9DFF !important;
+  box-shadow: 0 6px 20px rgba(91, 157, 255, 0.5), inset 1px 1px 2px rgba(255, 255, 255, 0.3);
   color: #ffffff !important;
 }
 
@@ -218,10 +218,10 @@ video::-webkit-media-controls-enclosure {
 
 [data-theme="dark"] .neu-active-blue-soft,
 [data-theme="dark"] .neu-active-purple-soft {
-  background: #231238;
+  background: #0f1f38;
   box-shadow: 5px 5px 14px rgba(0, 0, 0, 0.6), -4px -4px 12px rgba(255, 255, 255, 0.04);
-  border: 1.5px solid rgba(147, 51, 234, 0.7);
-  color: #c084fc !important;
+  border: 1.5px solid rgba(91, 157, 255, 0.7);
+  color: #93c5fd !important;
 }
 
 [data-theme="dark"] .neu-floating-bar {
@@ -441,40 +441,36 @@ video::-webkit-media-controls-enclosure {
 }
 
 /* =========================================================================
-   GLOBAL ELECTRIC PURPLE ACCENT OVERRIDES
+   PURPLE PURGE & ACCENT NORMALIZATION (Clean Funshann Blue)
    ========================================================================= */
-.text-\[\#5B9DFF\], [class*="text-[#5B9DFF]"] {
-  color: #9333EA !important;
-}
-
-.bg-\[\#5B9DFF\], [class*="bg-[#5B9DFF]"] {
-  background-color: #9333EA !important;
-}
-
-.border-\[\#5B9DFF\], [class*="border-[#5B9DFF]"] {
-  border-color: #9333EA !important;
-}
-
-.ring-\[\#5B9DFF\], [class*="ring-[#5B9DFF]"] {
-  --tw-ring-color: #9333EA !important;
-}
-
-.hover\:text-\[\#5B9DFF\]:hover, [class*="hover:text-[#5B9DFF]"]:hover {
-  color: #7E22CE !important;
-}
-
-.hover\:bg-\[\#5B9DFF\]:hover, [class*="hover:bg-[#5B9DFF]"]:hover {
-  background-color: #7E22CE !important;
-}
-
-.hover\:border-\[\#5B9DFF\]:hover, [class*="hover:border-[#5B9DFF]"]:hover {
-  border-color: #9333EA !important;
-}
-
-/* Light purple card fills and borders */
 .bg-purple-card {
-  background-color: #F5F3FF !important;
-  border-color: #EDE9FE !important;
+  background-color: #EFF6FF !important;
+  border-color: #DBEAFE !important;
+}
+
+/* Ensure no purple or violet appears anywhere in app and webapp */
+[class*="text-purple-"], [class*="text-[#9333EA]"], [class*="text-violet-"] {
+  color: #5B9DFF !important;
+}
+
+[class*="bg-purple-600"], [class*="bg-purple-700"], [class*="bg-[#9333EA]"], [class*="bg-violet-600"], [class*="bg-violet-700"] {
+  background-color: #5B9DFF !important;
+}
+
+[class*="bg-purple-50"], [class*="bg-purple-100"], [class*="bg-violet-50"] {
+  background-color: #EFF6FF !important;
+}
+
+[class*="border-purple-"], [class*="border-violet-"] {
+  border-color: #DBEAFE !important;
+}
+
+[class*="hover:bg-purple-700"]:hover, [class*="hover:bg-purple-600"]:hover, [class*="hover:bg-[#9333EA]"]:hover {
+  background-color: #4A8CFF !important;
+}
+
+[class*="hover:text-purple-"]:hover, [class*="hover:text-[#9333EA]"]:hover {
+  color: #4A8CFF !important;
 }
 
 /* =========================================================================

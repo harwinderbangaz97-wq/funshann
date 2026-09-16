@@ -49,7 +49,7 @@ import {
 } from 'lucide-react';
 import { User, VoiceNoteData } from '../types';
 import { syncCommunityToFirestore } from '../services/firebase';
-import { format12HourTime } from '../services/timeUtils';
+import { format12HourTime, isUserOnline } from '../services/timeUtils';
 import { VoiceWaveformIcon, GalleryCardsIcon } from './ChatView';
 
 export interface CommunityMessage {
@@ -795,7 +795,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                   >
                     {/* Incoming Sender Avatar */}
                     {!isMe && (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 shadow-2xs mb-1">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#5B9DFF] to-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 shadow-2xs mb-1">
                         {m.senderName.charAt(0)}
                       </div>
                     )}
@@ -1266,7 +1266,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                   return (
                     <div key={m.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-bold flex items-center justify-center text-xs shadow-2xs flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#5B9DFF] to-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-2xs flex-shrink-0">
                           {m.name.charAt(0)}
                         </div>
                         <div className="min-w-0">
@@ -1512,7 +1512,7 @@ export const CommunityChannelModal: React.FC<CommunityChannelModalProps> = ({
                           alt={contact.name}
                           className="w-full h-full rounded-full object-cover"
                         />
-                        {contact.isOnline && (
+                        {isUserOnline(contact) && (
                           <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
                         )}
                       </div>

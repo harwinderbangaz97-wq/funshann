@@ -59,10 +59,17 @@ export const MediaGridMessage: React.FC<MediaGridMessageProps> = ({
   const renderTicks = () => {
     if (!isMsgSender) return null;
     const resolvedStatus = status || (isRead ? 'read' : (isDelivered ? 'delivered' : 'sent'));
+    const isSeen = resolvedStatus === 'read' || isRead;
     return (
-      <span title={resolvedStatus === 'read' ? 'Read' : resolvedStatus === 'delivered' ? 'Delivered' : 'Sent'}>
-        {resolvedStatus === 'read' ? (
-          <CheckCheck className="w-3.5 h-3.5 text-blue-300" />
+      <span
+        title={isSeen ? 'Seen' : resolvedStatus === 'delivered' ? 'Delivered' : 'Sent'}
+        className="inline-flex items-center gap-1"
+      >
+        {isSeen ? (
+          <span className="inline-flex items-center gap-1 text-[#38BDF8] font-bold">
+            <CheckCheck className="w-3.5 h-3.5 text-[#38BDF8] stroke-[2.8] drop-shadow-xs" />
+            <span className="text-[8.5px] text-sky-200 font-semibold tracking-tight">Seen</span>
+          </span>
         ) : resolvedStatus === 'delivered' ? (
           <CheckCheck className="w-3.5 h-3.5 text-white/80" />
         ) : (

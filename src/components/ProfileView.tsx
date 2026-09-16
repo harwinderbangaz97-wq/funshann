@@ -519,7 +519,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               document.documentElement.style.overflow = '';
               if (onBack) onBack();
             }}
-            className="h-9 px-3.5 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#9333EA] flex items-center gap-1.5 transition cursor-pointer"
+            className="h-9 px-3.5 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#5B9DFF] flex items-center gap-1.5 transition cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
@@ -539,7 +539,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               whileTap={{ scale: 0.92 }}
               onClick={handleShareProfile}
               aria-label="Share profile"
-              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition cursor-pointer"
+              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
             </motion.button>
@@ -548,7 +548,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               whileTap={{ scale: 0.92 }}
               onClick={() => setIsIndividualMenuOpen(true)}
               aria-label="User settings"
-              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition cursor-pointer"
+              className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition cursor-pointer"
             >
               <MoreVertical className="w-4 h-4" />
             </motion.button>
@@ -573,7 +573,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white dark:bg-slate-800 shadow-md border-2 border-white dark:border-slate-800 flex items-center justify-center"
                 title="Verified User"
               >
-                <CheckCircle2 className="w-5 h-5 text-[#9333EA] fill-[#9333EA]/20" />
+                <CheckCircle2 className="w-5 h-5 text-[#5B9DFF] fill-[#5B9DFF]/20" />
               </div>
             )}
           </div>
@@ -585,9 +585,9 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={() => setIsEditProfileOpen(true)}
-                  className="h-11 px-5 rounded-full neu-raised text-[13.5px] font-bold text-slate-700 hover:text-[#9333EA] flex items-center justify-center gap-2 transition-colors cursor-pointer flex-1 sm:flex-initial"
+                  className="h-11 px-5 rounded-full neu-raised text-[13.5px] font-bold text-slate-700 hover:text-[#5B9DFF] flex items-center justify-center gap-2 transition-colors cursor-pointer flex-1 sm:flex-initial"
                 >
-                  <Edit3 className="w-4 h-4 text-[#9333EA]" />
+                  <Edit3 className="w-4 h-4 text-[#5B9DFF]" />
                   <span>Edit Profile</span>
                 </motion.button>
 
@@ -596,7 +596,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                   onClick={handleShareProfile}
                   aria-label="Share Profile"
                   title="Share Profile"
-                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition-colors cursor-pointer shrink-0"
+                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition-colors cursor-pointer shrink-0"
                 >
                   <Share2 className="w-5 h-5" />
                 </motion.button>
@@ -605,7 +605,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                   whileTap={{ scale: 0.94 }}
                   onClick={onOpenSettings}
                   aria-label="Settings"
-                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#9333EA] transition-colors cursor-pointer shrink-0"
+                  className="w-11 h-11 rounded-full neu-raised flex items-center justify-center text-slate-600 hover:text-[#5B9DFF] transition-colors cursor-pointer shrink-0"
                 >
                   <Settings className="w-5 h-5" />
                 </motion.button>
@@ -639,9 +639,9 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 <motion.button
                   whileTap={{ scale: 0.94 }}
                   onClick={() => onOpenDirectChat && onOpenDirectChat(displayedUser)}
-                  className="h-11 px-5 rounded-full neu-raised flex items-center justify-center gap-2 text-[13.5px] font-bold text-slate-700 hover:text-[#9333EA] transition cursor-pointer flex-1 sm:flex-initial shadow-sm"
+                  className="h-11 px-5 rounded-full neu-raised flex items-center justify-center gap-2 text-[13.5px] font-bold text-slate-700 hover:text-[#5B9DFF] transition cursor-pointer flex-1 sm:flex-initial shadow-sm"
                 >
-                  <MessageSquare className="w-4.5 h-4.5 text-[#9333EA]" />
+                  <MessageSquare className="w-4.5 h-4.5 text-[#5B9DFF]" />
                   <span>Message</span>
                 </motion.button>
               </>
@@ -656,7 +656,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               {displayedUser.name}
             </h2>
           </div>
-          <p className="text-[13.5px] font-semibold text-[#9333EA]">
+          <p className="text-[13.5px] font-semibold text-[#5B9DFF]">
             @{displayedUser.username}
           </p>
           {displayedUser.bio && (
@@ -668,7 +668,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
           <div className="flex flex-wrap items-center gap-3.5 text-[13px] text-slate-500 pt-1">
             {displayedUser.location && (
               <span className="flex items-center gap-1">
-                <MapPin className="w-4 h-4 text-[#9333EA]" />
+                <MapPin className="w-4 h-4 text-[#5B9DFF]" />
                 {displayedUser.location}
               </span>
             )}
@@ -681,7 +681,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 }
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1 text-[#9333EA] font-semibold hover:underline"
+                className="flex items-center gap-1 text-[#5B9DFF] font-semibold hover:underline"
               >
                 <LinkIcon className="w-4 h-4" />
                 <span>{displayedUser.website.replace(/^https?:\/\//, '')}</span>
@@ -694,7 +694,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         {Array.isArray(displayedUser.interests) && displayedUser.interests.length > 0 && (
           <div className="mb-3.5 pt-2 border-t border-slate-100/80">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <Tag className="w-3.5 h-3.5 text-[#9333EA]" />
+              <Tag className="w-3.5 h-3.5 text-[#5B9DFF]" />
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Interests & Passions
               </span>
@@ -705,7 +705,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                 return (
                   <span
                     key={`${cleanTag}-${idx}`}
-                    className="px-3 py-1 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#9333EA] transition-colors"
+                    className="px-3 py-1 rounded-full neu-raised text-xs font-bold text-slate-700 hover:text-[#5B9DFF] transition-colors"
                   >
                     {cleanTag}
                   </span>
@@ -720,7 +720,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
           <div className="mb-3.5 pt-2 border-t border-slate-100/80">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Globe className="w-3.5 h-3.5 text-[#9333EA]" />
+                <Globe className="w-3.5 h-3.5 text-[#5B9DFF]" />
                 Connected Channels
               </span>
               <span className="text-[11px] text-slate-400 font-semibold">
@@ -739,7 +739,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                     title={link?.title || link?.platform || 'Social Link'}
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.92 }}
-                    className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#9333EA] hover:border-[#9333EA]/50 transition group shadow-xs cursor-pointer"
+                    className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF] hover:border-[#5B9DFF]/50 transition group shadow-xs cursor-pointer"
                   >
                     <Icon className="w-4.5 h-4.5 group-hover:scale-110 transition-transform" />
                   </motion.a>
@@ -827,7 +827,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         {/* Section Header with Feed vs Grid Layout Switcher */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <Layers className="w-4.5 h-4.5 text-[#9333EA]" />
+            <Layers className="w-4.5 h-4.5 text-[#5B9DFF]" />
             <span className="text-sm font-bold text-slate-800">
               {isOwnProfile
                 ? activeSubTab === 'posts'
@@ -946,7 +946,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                     onClick={(e) => handlePostLikeClick(e, post.id)}
                     className={`flex items-center gap-1 px-2 py-1 rounded-full backdrop-blur-md transition cursor-pointer font-bold ${
                       post.isLiked
-                        ? 'bg-[#9333EA] text-white shadow-xs'
+                        ? 'bg-[#5B9DFF] text-white shadow-xs'
                         : 'bg-black/40 text-slate-200 hover:bg-black/60'
                     }`}
                     title="Like post"
@@ -1059,7 +1059,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {isLoadingModalUsers ? (
                   <div className="flex flex-col items-center justify-center py-10 space-y-2.5">
-                    <div className="w-7 h-7 border-2 border-[#9333EA] border-t-transparent rounded-full animate-spin" />
+                    <div className="w-7 h-7 border-2 border-[#5B9DFF] border-t-transparent rounded-full animate-spin" />
                     <span className="text-xs text-slate-400 font-medium">Loading {listModalType}...</span>
                   </div>
                 ) : modalUsers.length === 0 ? (
@@ -1085,12 +1085,12 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                         <div>
                           <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1">
                             {user.name}
-                            {user.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-[#9333EA] fill-current" />}
+                            {user.isVerified && <CheckCircle2 className="w-3.5 h-3.5 text-[#5B9DFF] fill-current" />}
                           </h4>
                           <p className="text-xs text-slate-400">@{user.username}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-bold text-[#9333EA] neu-raised px-3 py-1.5 rounded-full">
+                      <span className="text-xs font-bold text-[#5B9DFF] neu-raised px-3 py-1.5 rounded-full">
                         View
                       </span>
                     </div>

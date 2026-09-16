@@ -498,7 +498,7 @@ export const PrivacyControlsSubPage: React.FC<PrivacyControlsSubPageProps> = ({
           {/* 5. Contact Data Protection Officer */}
           <div className="neu-flat rounded-[24px] p-4.5 space-y-3">
             <div className="flex items-center gap-2">
-              <Mail className="w-4 h-4 text-purple-600" />
+              <Mail className="w-4 h-4 text-[#5B9DFF]" />
               <h4 className="text-xs font-bold text-slate-800">5. Data Protection Officer (DPO) Contact</h4>
             </div>
             <p className="text-[11px] text-slate-500 leading-relaxed">

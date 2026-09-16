@@ -127,8 +127,8 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
   return (
     <div className="space-y-4 pb-4">
       {/* Header Banner */}
-      <div className="neu-flat rounded-[24px] p-4.5 flex items-start gap-3 bg-purple-50/40 border border-purple-100/60">
-        <div className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-purple-600 flex-shrink-0">
+      <div className="neu-flat rounded-[24px] p-4.5 flex items-start gap-3 bg-blue-50/40 border border-blue-100/60">
+        <div className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF] flex-shrink-0">
           <Scale className="w-5 h-5" />
         </div>
         <div>
@@ -185,7 +185,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
         <form onSubmit={handleSubmit} className="neu-flat rounded-[28px] p-4.5 space-y-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-purple-600" />
+              <FileText className="w-4 h-4 text-[#5B9DFF]" />
               <h4 className="text-xs font-bold text-slate-800">Submit Formal Grievance</h4>
             </div>
             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
@@ -204,7 +204,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
                 value={complainantName}
                 onChange={(e) => setComplainantName(e.target.value)}
                 placeholder="Your legal name"
-                className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30"
               />
             </div>
 
@@ -216,7 +216,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
                 value={complainantEmail}
                 onChange={(e) => setComplainantEmail(e.target.value)}
                 placeholder="your.email@example.com"
-                className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30"
               />
             </div>
           </div>
@@ -229,7 +229,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
               value={accountIdentifier}
               onChange={(e) => setAccountIdentifier(e.target.value)}
               placeholder="@yourhandle"
-              className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30"
             />
           </div>
 
@@ -239,7 +239,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
             <select
               value={complaintType}
               onChange={(e) => setComplaintType(e.target.value as any)}
-              className="w-full h-10 px-3 neu-inset rounded-xl text-xs font-semibold text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              className="w-full h-10 px-3 neu-inset rounded-xl text-xs font-semibold text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30"
             >
               <option value="content_safety">Severe Harmful Content / Violence</option>
               <option value="privacy_breach">Data Protection &amp; Privacy Infringement</option>
@@ -258,7 +258,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Brief summary of the grievance..."
-              className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30"
             />
           </div>
 
@@ -270,7 +270,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
               value={contentReference}
               onChange={(e) => setContentReference(e.target.value)}
               placeholder="e.g. @violating_user or post #post_124"
-              className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              className="w-full h-10 px-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30"
             />
           </div>
 
@@ -282,7 +282,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Describe the complaint with chronological timeline, impacted parties, and specific remedy requested..."
-              className="w-full p-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-none"
+              className="w-full p-3 neu-inset rounded-xl text-xs text-slate-800 bg-transparent focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]/30 resize-none"
               required
             />
           </div>
@@ -291,8 +291,8 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-700 block">Attachment / Supporting Evidence (Optional)</label>
             {attachment ? (
-              <div className="flex items-center justify-between p-2.5 neu-inset rounded-xl bg-purple-50/50 text-xs">
-                <div className="flex items-center gap-2 text-purple-700 truncate pr-2">
+              <div className="flex items-center justify-between p-2.5 neu-inset rounded-xl bg-blue-50/50 text-xs">
+                <div className="flex items-center gap-2 text-blue-700 truncate pr-2">
                   <Paperclip className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="truncate font-medium">{attachment.name}</span>
                   <span className="text-[10px] text-slate-400">({attachment.size})</span>
@@ -323,7 +323,7 @@ export const GrievanceSubPage: React.FC<GrievanceSubPageProps> = ({ currentUser,
             whileTap={{ scale: 0.97 }}
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-11 rounded-2xl bg-gradient-to-r from-purple-600 to-[#5B9DFF] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-purple-500/20 active:opacity-90 transition cursor-pointer disabled:opacity-50"
+            className="w-full h-11 rounded-2xl bg-[#5B9DFF] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:opacity-90 transition cursor-pointer disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
             <span>{isSubmitting ? 'Transmitting to Officer...' : 'Submit Grievance for Redressal'}</span>

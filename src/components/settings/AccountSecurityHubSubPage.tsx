@@ -150,7 +150,7 @@ export const AccountSecurityHubSubPage: React.FC<AccountSecurityHubSubPageProps>
             className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-slate-50/50 transition-colors text-left cursor-pointer"
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-purple-500">
+              <div className="w-9 h-9 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF]">
                 <Smartphone className="w-4 h-4" />
               </div>
               <div>

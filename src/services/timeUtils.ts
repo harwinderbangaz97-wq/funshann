@@ -211,3 +211,94 @@ export const formatDetailed12HourTime = (val: any): string => {
 
   return `${dateStr}, ${timeStr}`;
 };
+
+/**
+ * Formats a timestamp specifically for last seen display (e.g. "just now", "5m ago", "today at 02:30 PM", "yesterday at 10:15 AM", "3d ago", "Oct 12 at 02:30 PM").
+ */
+export const formatLastSeenTime = (val: any): string => {
+  if (!val) return 'recently';
+  const ms = parseTimestampToMs(val);
+  const now = Date.now();
+  const diffMs = Math.max(0, now - ms);
+
+  // If under 1 minute
+  if (diffMs < 60 * 1000) {
+    return 'just now';
+  }
+
+  // If under 1 hour, show concise relative time like "5m ago"
+  const diffMinutes = Math.floor(diffMs / (60 * 1000));
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  // If today
+  const date = new Date(ms);
+  const nowDate = new Date(now);
+  const isToday =
+    date.getDate() === nowDate.getDate() &&
+    date.getMonth() === nowDate.getMonth() &&
+    date.getFullYear() === nowDate.getFullYear();
+
+  const timeStr = format12HourTime(ms);
+
+  if (isToday) {
+    return `today at ${timeStr}`;
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) {
+    return `yesterday at ${timeStr}`;
+  }
+
+  // If within the last 7 days
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  }
+
+  // Older
+  const dateStr = date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  return `${dateStr} at ${timeStr}`;
+};
+
+/**
+ * Determines whether a user is genuinely online right now.
+ * Validates both the isOnline boolean and heartbeat freshness (within 90 seconds).
+ */
+export const isUserOnline = (user?: { isOnline?: boolean; lastActive?: any; lastSeen?: any } | null): boolean => {
+  if (!user || !user.isOnline) return false;
+  const rawTime = user.lastActive ?? user.lastSeen;
+  if (!rawTime) return false;
+  const ms = parseTimestampToMs(rawTime);
+  const now = Date.now();
+  return (now - ms) <= 90 * 1000;
+};
+
+/**
+ * Returns user presence status label for UI display:
+ * - "online" if user is genuinely online
+ * - "last seen [formatted time]" if offline with a known timestamp
+ * - "offline" fallback if no user or no timestamp
+ */
+export const getUserPresenceLabel = (user?: { isOnline?: boolean; lastActive?: any; lastSeen?: any } | null): string => {
+  if (!user) return 'offline';
+  if (isUserOnline(user)) {
+    return 'online';
+  }
+  const rawTime = user.lastActive ?? user.lastSeen;
+  if (rawTime) {
+    const formatted = formatLastSeenTime(rawTime);
+    return `last seen ${formatted}`;
+  }
+  return 'offline';
+};

@@ -53,6 +53,7 @@ export const normalizeMessage = (id: string, raw: any): Message => {
     isRead,
     isDelivered,
     status,
+    seenAt: raw?.seenAt ? parseTimestampToMs(raw.seenAt) : (raw?.readAt ? parseTimestampToMs(raw.readAt) : undefined),
     privacyMode: 'normal',
     createdAt,
     isForwarded: Boolean(raw?.isForwarded),
@@ -272,14 +273,16 @@ export const markMessageAsReadInFirestore = async (
   try {
     await ensureFirebaseAuth();
     if (!chatId || !messageId) return;
+    const now = Date.now();
     const msgRef = doc(db, 'chats', chatId, 'messages', messageId);
     await updateDoc(msgRef, {
       isRead: true,
       isDelivered: true,
       status: 'read',
+      seenAt: now,
       readAt: serverTimestamp(),
     }).catch(async () => {
-      await setDoc(msgRef, { isRead: true, isDelivered: true, status: 'read' }, { merge: true });
+      await setDoc(msgRef, { isRead: true, isDelivered: true, status: 'read', seenAt: now }, { merge: true });
     });
   } catch (error) {
     console.warn('Error marking message as read in Firestore:', error);

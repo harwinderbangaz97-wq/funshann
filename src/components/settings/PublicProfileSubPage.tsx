@@ -65,7 +65,7 @@ export const PublicProfileSubPage: React.FC<PublicProfileSubPageProps> = ({
       title: 'Show Followers & Following List',
       desc: 'Allow visitors to tap and view your connection list',
       icon: Users,
-      color: 'text-purple-500',
+      color: 'text-[#5B9DFF]',
     },
     {
       key: 'showLikedPosts' as keyof PublicProfileSettings,

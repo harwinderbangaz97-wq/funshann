@@ -193,18 +193,37 @@ function AppContent() {
 
     // Heartbeat every 30 seconds
     const interval = setInterval(() => {
-      updateUserInFirestore(currentUser.id, { isOnline: true, lastActive: serverTimestamp() }).catch(console.warn);
+      if (document.visibilityState === 'visible') {
+        updateUserInFirestore(currentUser.id, { isOnline: true, lastActive: serverTimestamp() }).catch(console.warn);
+      }
     }, 30000);
 
-    const handleBeforeUnload = () => {
+    const markOffline = () => {
       updateUserInFirestore(currentUser.id, { isOnline: false, lastActive: serverTimestamp() }).catch(console.warn);
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    const markOnline = () => {
+      updateUserInFirestore(currentUser.id, { isOnline: true, lastActive: serverTimestamp() }).catch(console.warn);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        markOffline();
+      } else if (document.visibilityState === 'visible') {
+        markOnline();
+      }
+    };
+
+    window.addEventListener('beforeunload', markOffline);
+    window.addEventListener('pagehide', markOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      updateUserInFirestore(currentUser.id, { isOnline: false, lastActive: serverTimestamp() }).catch(console.warn);
+      window.removeEventListener('beforeunload', markOffline);
+      window.removeEventListener('pagehide', markOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      markOffline();
     };
   }, [currentUser?.id]);
 
@@ -1661,12 +1680,15 @@ function AppContent() {
       prevThreads.map((thread) => {
         if (thread.id === threadId || thread.id === deterministicChatId || thread.participant?.id === threadId || (!thread.isGroup && thread.id.includes(threadId))) {
           let updatedMessage: Message | null = null;
+          const now = Date.now();
           const updatedMessages = thread.messages.map((m) => {
-            if (m.id === messageId && !m.isRead) {
+            if (m.id === messageId && (!m.isRead || m.status !== 'read')) {
               updatedMessage = {
                 ...m,
                 isRead: true,
-                seenAt: Date.now(),
+                status: 'read',
+                isDelivered: true,
+                seenAt: m.seenAt || now,
               };
               return updatedMessage;
             }
@@ -1676,6 +1698,9 @@ function AppContent() {
             ...thread,
             unreadCount: 0,
             messages: updatedMessages,
+            lastMessage: thread.lastMessage && thread.lastMessage.senderId !== currentUser.id
+              ? { ...thread.lastMessage, isRead: true, status: 'read' as const }
+              : thread.lastMessage,
           };
           syncChatThreadToFirestore(updatedThread).catch(console.warn);
           if (updatedMessage) {
@@ -1985,6 +2010,9 @@ function AppContent() {
 
   const handleLogout = async () => {
     try {
+      if (currentUser?.id) {
+        await updateUserInFirestore(currentUser.id, { isOnline: false, lastActive: serverTimestamp() }).catch(console.warn);
+      }
       await signOut(auth);
       try {
         localStorage.removeItem('funshann_current_user');
@@ -2415,7 +2443,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               this.setState({ hasError: false, error: null });
               this.handleReload();
             }}
-            className="px-6 py-2.5 rounded-full bg-[#9333EA] text-white text-xs font-bold shadow-md hover:bg-purple-700 transition active:scale-95 cursor-pointer"
+            className="px-6 py-2.5 rounded-full bg-[#5B9DFF] text-white text-xs font-bold shadow-md hover:bg-blue-600 transition active:scale-95 cursor-pointer"
           >
             Reload Funshann
           </button>

@@ -17,7 +17,7 @@ export const CommunityDiscoveryView: React.FC = () => {
   ];
 
   const suggestedCommunities = [
-    { id: '4', name: 'Photography Lovers', description: 'Share tips, gear reviews, and your best shots.', members: '45k', icon: Globe, color: 'text-purple-500', bg: 'bg-purple-100', border: 'border-purple-200/50' },
+    { id: '4', name: 'Photography Lovers', description: 'Share tips, gear reviews, and your best shots.', members: '45k', icon: Globe, color: 'text-cyan-600', bg: 'bg-cyan-100', border: 'border-cyan-200/50' },
     { id: '5', name: 'React Developers', description: 'A community for all things React and Next.js.', members: '89k', icon: Users, color: 'text-[#5B9DFF]', bg: 'bg-blue-100', border: 'border-blue-200/50' },
     { id: '6', name: 'Digital Nomads', description: 'Work from anywhere and share your journey.', members: '21k', icon: Globe, color: 'text-rose-500', bg: 'bg-rose-100', border: 'border-rose-200/50' },
   ];

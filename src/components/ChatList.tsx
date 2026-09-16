@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { MessageSquare } from 'lucide-react';
 import { ChatThread } from '../types';
+import { isUserOnline } from '../services/timeUtils';
 
 interface ChatListProps {
   threads: ChatThread[];
@@ -66,7 +67,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 alt={thread.isGroup ? thread.groupName : thread.participant?.name}
                 className="w-14 h-14 rounded-full object-cover shadow-sm group-hover:scale-105 transition-transform"
               />
-              {!thread.isGroup && thread.participant?.isOnline && (
+              {!thread.isGroup && isUserOnline(thread.participant) && (
                 <span className="absolute bottom-0 right-0 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
               )}
               {/* Distinct red unread indicator dot on avatar */}

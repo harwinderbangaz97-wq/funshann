@@ -174,7 +174,7 @@ export const AccountRecoverySubPage: React.FC<AccountRecoverySubPageProps> = ({
             className="neu-flat rounded-[22px] p-4 flex items-center justify-between hover:bg-slate-50/50 cursor-pointer transition-all"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-purple-600">
+              <div className="w-10 h-10 rounded-full neu-raised flex items-center justify-center text-[#5B9DFF]">
                 <FileCheck className="w-5 h-5" />
               </div>
               <div>
