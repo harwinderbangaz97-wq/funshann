@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  ReCaptchaV3Provider,
+  AppCheck,
+} from 'firebase/app-check';
+import {
   getAuth,
   onAuthStateChanged,
   setPersistence,
@@ -73,6 +79,92 @@ export const firebaseConfig = {
 
 // Initialize single Firebase App instance
 export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// App Check singleton reference and guard
+let appCheckInstance: AppCheck | null = null;
+let appCheckAttempted = false;
+
+/**
+ * Initializes Firebase App Check exactly once.
+ *
+ * Production Provider:
+ * - ReCaptchaEnterpriseProvider (Google Cloud reCAPTCHA Enterprise - recommended production standard)
+ * - ReCaptchaV3Provider (reCAPTCHA v3 fallback if v3 site key provided)
+ *
+ * Development vs Production handling:
+ * - Development: Allows optional debug token via VITE_APPCHECK_DEBUG_TOKEN when explicitly developing.
+ * - Production: Strictly ensures no debug token is set, active, or exposed.
+ * - Non-blocking: Gracefully handles unconfigured keys so Firebase Auth, Firestore, and Storage are not broken.
+ */
+export const initAppCheck = (): AppCheck | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  if (appCheckAttempted) {
+    return appCheckInstance;
+  }
+  appCheckAttempted = true;
+
+  try {
+    const isDev = Boolean(import.meta.env?.DEV);
+    const isProd = Boolean(import.meta.env?.PROD);
+
+    // Development vs Production debug token isolation
+    if (typeof globalThis !== 'undefined') {
+      const g = globalThis as Record<string, any>;
+      if (isDev && !isProd) {
+        const debugToken = import.meta.env?.VITE_APPCHECK_DEBUG_TOKEN?.trim();
+        if (debugToken) {
+          g.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
+        }
+      } else {
+        // In production, strictly enforce that no debug token is set on window/global
+        if ('FIREBASE_APPCHECK_DEBUG_TOKEN' in g) {
+          try {
+            delete g.FIREBASE_APPCHECK_DEBUG_TOKEN;
+          } catch {
+            g.FIREBASE_APPCHECK_DEBUG_TOKEN = undefined;
+          }
+        }
+      }
+    }
+
+    const enterpriseSiteKey = import.meta.env?.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY?.trim();
+    const v3SiteKey = import.meta.env?.VITE_RECAPTCHA_V3_SITE_KEY?.trim();
+
+    if (enterpriseSiteKey) {
+      appCheckInstance = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(enterpriseSiteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
+      console.info('[AppCheck] Initialized with reCAPTCHA Enterprise provider.');
+    } else if (v3SiteKey) {
+      appCheckInstance = initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(v3SiteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
+      console.info('[AppCheck] Initialized with reCAPTCHA v3 provider.');
+    } else {
+      // Non-fatal warning when site keys are not yet configured in environment
+      if (isDev) {
+        console.warn(
+          '[AppCheck] Notice: VITE_RECAPTCHA_ENTERPRISE_SITE_KEY / VITE_RECAPTCHA_V3_SITE_KEY not set in local environment. App Check is unconfigured on client.'
+        );
+      } else {
+        console.warn(
+          '[AppCheck] Notice: reCAPTCHA site key is not configured in production environment variables. Register your domain in Google Cloud / Firebase Console to enable App Check.'
+        );
+      }
+    }
+  } catch (error) {
+    console.warn('[AppCheck] Initialization caught error (non-fatal):', error);
+  }
+
+  return appCheckInstance;
+};
+
+// Initialize App Check singleton once on client load
+export const appCheck = initAppCheck();
 
 // Initialize single Firebase Auth instance
 export const auth = getAuth(app);
@@ -2538,7 +2630,6 @@ export const followUser = async (followerUid: string, followingUid: string): Pro
     await ensureFirebaseAuth();
     const followRef = doc(db, 'follows', `${followerUid}_${followingUid}`);
     const followerRef = doc(db, 'users', followerUid);
-    const followingRef = doc(db, 'users', followingUid);
 
     await runTransaction(db, async (transaction) => {
       const followDoc = await transaction.get(followRef);
@@ -2552,7 +2643,6 @@ export const followUser = async (followerUid: string, followingUid: string): Pro
         createdAt: serverTimestamp(),
       });
       transaction.set(followerRef, { followingCount: increment(1) }, { merge: true });
-      transaction.set(followingRef, { followersCount: increment(1) }, { merge: true });
     });
   } catch (error) {
     console.warn('Firestore followUser fallback:', error);
@@ -2574,7 +2664,6 @@ export const unfollowUser = async (followerUid: string, followingUid: string): P
     await ensureFirebaseAuth();
     const followRef = doc(db, 'follows', `${followerUid}_${followingUid}`);
     const followerRef = doc(db, 'users', followerUid);
-    const followingRef = doc(db, 'users', followingUid);
 
     await runTransaction(db, async (transaction) => {
       const followDoc = await transaction.get(followRef);
@@ -2582,7 +2671,6 @@ export const unfollowUser = async (followerUid: string, followingUid: string): P
 
       transaction.delete(followRef);
       transaction.set(followerRef, { followingCount: increment(-1) }, { merge: true });
-      transaction.set(followingRef, { followersCount: increment(-1) }, { merge: true });
     });
   } catch (error) {
     console.warn('Firestore unfollowUser fallback:', error);

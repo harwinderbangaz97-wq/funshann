@@ -7,9 +7,11 @@
       "properties": {
         "followerUid": { "type": "string" },
         "followingUid": { "type": "string" },
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["followerUid", "followingUid", "createdAt"]
+      "required": ["followerUid", "followingUid"]
     },
     "users": {
       "title": "User",
@@ -18,8 +20,14 @@
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
+        "displayName": { "type": "string" },
         "username": { "type": "string" },
-        "avatar": { "type": "string" }
+        "avatar": { "type": "string" },
+        "bio": { "type": "string" },
+        "email": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "followersCount": { "type": "number" },
+        "followingCount": { "type": "number" }
       },
       "required": ["id", "name"]
     },
@@ -32,7 +40,13 @@
         "userId": { "type": "string" },
         "imageUrl": { "type": "string" },
         "caption": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "location": { "type": "string" },
+        "likes": { "type": "array" },
+        "dislikes": { "type": "array" },
+        "likesCount": { "type": "number" },
+        "dislikesCount": { "type": "number" },
+        "comments": { "type": "array" },
+        "commentsCount": { "type": "number" }
       },
       "required": ["id", "userId", "imageUrl"]
     },
@@ -45,7 +59,6 @@
         "userId": { "type": "string" },
         "mediaUrl": { "type": "string" },
         "caption": { "type": "string" },
-        "timestamp": { "type": "string" },
         "viewsCount": { "type": "number" },
         "viewerIds": { "type": "array" },
         "viewedByUsers": { "type": "array" }
@@ -59,9 +72,11 @@
       "properties": {
         "id": { "type": "string" },
         "participants": { "type": "array" },
+        "participantIds": { "type": "array" },
+        "lastMessage": { "type": "object" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "participants"]
+      "required": ["id"]
     },
     "messages": {
       "title": "Message",
@@ -72,9 +87,75 @@
         "senderId": { "type": "string" },
         "receiverId": { "type": "string" },
         "text": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "imageUrl": { "type": "string" },
+        "voiceNote": { "type": "object" },
+        "reactions": { "type": "array" },
+        "createdAt": { "type": "string" }
       },
-      "required": ["id", "senderId", "receiverId"]
+      "required": ["senderId", "receiverId"]
+    },
+    "notifications": {
+      "title": "Notification",
+      "description": "User in-app notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "targetUserId"]
+    },
+    "reports": {
+      "title": "Report",
+      "description": "Safety and abuse reports",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reportedUserId": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "required": ["id", "reason"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profiles and public info"
+    },
+    "/follows/{followId}": {
+      "schema": "follows",
+      "description": "Social follower/following relationships"
+    },
+    "/posts/{postId}": {
+      "schema": "posts",
+      "description": "User posts and comments"
+    },
+    "/stories/{storyId}": {
+      "schema": "stories",
+      "description": "Ephemeral 24h stories and viewer records"
+    },
+    "/chats/{chatId}": {
+      "schema": "chats",
+      "description": "Direct and group chat rooms"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "messages",
+      "description": "Chat messages inside rooms"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "notifications",
+      "description": "User activity alerts and notifications"
+    },
+    "/universal_reports/{reportId}": {
+      "schema": "reports",
+      "description": "Confidential safety and abuse reports"
+    },
+    "/bug_reports/{bugId}": {
+      "schema": "reports",
+      "description": "App bug reports"
     }
   }
 }

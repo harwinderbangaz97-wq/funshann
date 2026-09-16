@@ -101,19 +101,48 @@ import {
   formatDetailed12HourTime,
 } from './services/timeUtils';
 
-const HomeTab = React.lazy(() => import('./components/tabs/HomeTab').then(m => ({ default: m.HomeTab })));
-const SearchTab = React.lazy(() => import('./components/tabs/SearchTab').then(m => ({ default: m.SearchTab })));
-const UploadTab = React.lazy(() => import('./components/tabs/UploadTab').then(m => ({ default: m.UploadTab })));
-const ChatTab = React.lazy(() => import('./components/tabs/ChatTab').then(m => ({ default: m.ChatTab })));
-const ProfileTab = React.lazy(() => import('./components/tabs/ProfileTab').then(m => ({ default: m.ProfileTab })));
+// Safe dynamic import wrapper with automatic retry for Vite module/chunk updates
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+): React.LazyExoticComponent<T> {
+  return React.lazy(async () => {
+    try {
+      return await factory();
+    } catch (err: any) {
+      // Retry after a brief delay in case of dev server restart or temporary network glitch
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        return await factory();
+      } catch (retryErr: any) {
+        console.error('[LazyLoad] Module import failed:', retryErr);
+        if (typeof window !== 'undefined') {
+          const reloadKey = 'retry_dynamic_import';
+          if (!sessionStorage.getItem(reloadKey)) {
+            sessionStorage.setItem(reloadKey, 'true');
+            window.location.reload();
+            return new Promise(() => {});
+          }
+          sessionStorage.removeItem(reloadKey);
+        }
+        throw retryErr;
+      }
+    }
+  });
+}
 
-const StoryViewerModal = React.lazy(() => import('./components/StoryViewerModal').then(m => ({ default: m.StoryViewerModal })));
-const CommentsModal = React.lazy(() => import('./components/CommentsModal').then(m => ({ default: m.CommentsModal })));
-const ShareSheetModal = React.lazy(() => import('./components/ShareSheetModal').then(m => ({ default: m.ShareSheetModal })));
-const NotificationDrawer = React.lazy(() => import('./components/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
-const FullPostModal = React.lazy(() => import('./components/FullPostModal').then(m => ({ default: m.FullPostModal })));
-const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
-const CreateStoryModal = React.lazy(() => import('./components/CreateStoryModal').then(m => ({ default: m.CreateStoryModal })));
+const HomeTab = lazyWithRetry(() => import('./components/tabs/HomeTab').then(m => ({ default: m.HomeTab })));
+const SearchTab = lazyWithRetry(() => import('./components/tabs/SearchTab').then(m => ({ default: m.SearchTab })));
+const UploadTab = lazyWithRetry(() => import('./components/tabs/UploadTab').then(m => ({ default: m.UploadTab })));
+const ChatTab = lazyWithRetry(() => import('./components/tabs/ChatTab').then(m => ({ default: m.ChatTab })));
+const ProfileTab = lazyWithRetry(() => import('./components/tabs/ProfileTab').then(m => ({ default: m.ProfileTab })));
+
+const StoryViewerModal = lazyWithRetry(() => import('./components/StoryViewerModal').then(m => ({ default: m.StoryViewerModal })));
+const CommentsModal = lazyWithRetry(() => import('./components/CommentsModal').then(m => ({ default: m.CommentsModal })));
+const ShareSheetModal = lazyWithRetry(() => import('./components/ShareSheetModal').then(m => ({ default: m.ShareSheetModal })));
+const NotificationDrawer = lazyWithRetry(() => import('./components/NotificationDrawer').then(m => ({ default: m.NotificationDrawer })));
+const FullPostModal = lazyWithRetry(() => import('./components/FullPostModal').then(m => ({ default: m.FullPostModal })));
+const SettingsModal = lazyWithRetry(() => import('./components/SettingsModal').then(m => ({ default: m.SettingsModal })));
+const CreateStoryModal = lazyWithRetry(() => import('./components/CreateStoryModal').then(m => ({ default: m.CreateStoryModal })));
 
 const EMPTY_USER: User = {
   id: '',
@@ -2297,102 +2326,114 @@ function AppContent() {
             )}
 
             {/* Comments Drawer Modal */}
-            <CommentsModal
-              post={navState.activeCommentPost}
-              currentUser={currentUser}
-              isOpen={navState.activeCommentPost !== null}
-              onClose={closeComments}
-              onAddComment={handleAddComment}
-              onUserClick={handleOpenProfile}
-              onShowToast={showToast}
-            />
+            {navState.activeCommentPost && (
+              <CommentsModal
+                post={navState.activeCommentPost}
+                currentUser={currentUser}
+                isOpen={navState.activeCommentPost !== null}
+                onClose={closeComments}
+                onAddComment={handleAddComment}
+                onUserClick={handleOpenProfile}
+                onShowToast={showToast}
+              />
+            )}
 
             {/* Share Sheet Modal */}
-            <ShareSheetModal
-              post={navState.activeSharePost}
-              users={users}
-              isOpen={navState.activeSharePost !== null}
-              onClose={closeShareSheet}
-              onSendToContact={(userName) => {
-                showToast(`Shared post with ${userName}!`);
-              }}
-            />
+            {navState.activeSharePost && (
+              <ShareSheetModal
+                post={navState.activeSharePost}
+                users={users}
+                isOpen={navState.activeSharePost !== null}
+                onClose={closeShareSheet}
+                onSendToContact={(userName) => {
+                  showToast(`Shared post with ${userName}!`);
+                }}
+              />
+            )}
 
             {/* Notification Drawer */}
-            <NotificationDrawer
-              notifications={notifications}
-              isOpen={navState.isNotificationOpen}
-              onClose={closeNotifications}
-              onMarkAllRead={() => {
-                setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-                showToast('All notifications marked as read');
-              }}
-              onNotificationClick={handleNotificationClick}
-              onViewPost={handleExplicitViewPost}
-              onViewComments={handleExplicitViewComments}
-              onOpenProfile={handleExplicitOpenProfile}
-              onOpenChat={handleExplicitOpenChat}
-            />
+            {navState.isNotificationOpen && (
+              <NotificationDrawer
+                notifications={notifications}
+                isOpen={navState.isNotificationOpen}
+                onClose={closeNotifications}
+                onMarkAllRead={() => {
+                  setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+                  showToast('All notifications marked as read');
+                }}
+                onNotificationClick={handleNotificationClick}
+                onViewPost={handleExplicitViewPost}
+                onViewComments={handleExplicitViewComments}
+                onOpenProfile={handleExplicitOpenProfile}
+                onOpenChat={handleExplicitOpenChat}
+              />
+            )}
 
             {/* Settings & Preferences Modal */}
-            <SettingsModal
-              isOpen={navState.isSettingsOpen}
-              initialSection={navState.settingsSection || 'main'}
-              currentUser={currentUser}
-              onClose={closeSettings}
-              onUpdateUser={(updated) => {
-                setCurrentUser((prev) => ({ ...prev, ...updated }));
-              }}
-              onShowToast={showToast}
-              onResetData={() => {
-                setCurrentUser(EMPTY_USER);
-              }}
-              users={users}
-              chatThreads={chatThreads}
-              onDeleteChatThreads={(ids) => {
-                setChatThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
-              }}
-              lockedChatUserIds={lockedChatUserIds}
-              chatLockPasscode={chatLockPasscode}
-              isChatLockEnabled={isChatLockEnabled}
-              onUpdateLockedChatUserIds={handleUpdateLockedChatUserIds}
-              onUpdateChatLockPasscode={handleUpdateChatLockPasscode}
-              onUpdateChatLockEnabled={handleUpdateChatLockEnabled}
-              theme={theme}
-              onUpdateTheme={handleUpdateTheme}
-              onLogout={handleLogout}
-              permissionsState={permissionsState}
-              onUpdatePermissions={setAllPermissions}
-            />
+            {navState.isSettingsOpen && (
+              <SettingsModal
+                isOpen={navState.isSettingsOpen}
+                initialSection={navState.settingsSection || 'main'}
+                currentUser={currentUser}
+                onClose={closeSettings}
+                onUpdateUser={(updated) => {
+                  setCurrentUser((prev) => ({ ...prev, ...updated }));
+                }}
+                onShowToast={showToast}
+                onResetData={() => {
+                  setCurrentUser(EMPTY_USER);
+                }}
+                users={users}
+                chatThreads={chatThreads}
+                onDeleteChatThreads={(ids) => {
+                  setChatThreads((prev) => prev.filter((t) => !ids.includes(t.id)));
+                }}
+                lockedChatUserIds={lockedChatUserIds}
+                chatLockPasscode={chatLockPasscode}
+                isChatLockEnabled={isChatLockEnabled}
+                onUpdateLockedChatUserIds={handleUpdateLockedChatUserIds}
+                onUpdateChatLockPasscode={handleUpdateChatLockPasscode}
+                onUpdateChatLockEnabled={handleUpdateChatLockEnabled}
+                theme={theme}
+                onUpdateTheme={handleUpdateTheme}
+                onLogout={handleLogout}
+                permissionsState={permissionsState}
+                onUpdatePermissions={setAllPermissions}
+              />
+            )}
 
             {/* Add / Create Story Modal */}
-            <CreateStoryModal
-              isOpen={isCreatingStory}
-              onClose={() => setIsCreatingStory(false)}
-              currentUser={currentUser}
-              onPublishStory={handlePublishStory}
-              onShowToast={showToast}
-            />
+            {isCreatingStory && (
+              <CreateStoryModal
+                isOpen={isCreatingStory}
+                onClose={() => setIsCreatingStory(false)}
+                currentUser={currentUser}
+                onPublishStory={handlePublishStory}
+                onShowToast={showToast}
+              />
+            )}
 
             {/* Full Post View Modal with Android Back and In-Screen Back Support */}
-            <FullPostModal
-              post={posts.find((p) => p.id === navState.previewPost?.id) || navState.previewPost}
-              currentUser={currentUser}
-              isOpen={navState.previewPost !== null}
-              onClose={closePostPreview}
-              onLike={handleLikePost}
-              onDislike={handleDislikePost}
-              onReact={handleReaction}
-              onEmojiReact={handleEmojiReaction}
-              onAddComment={handleAddComment}
-              onShareClick={(p) => openShareSheet(p)}
-              onUserClick={handleOpenProfile}
-              onToggleSave={handleToggleSavePost}
-              onDeletePost={handleDeletePost}
-              onHidePost={handleHidePost}
-              onUpdateCaption={handleUpdateCaption}
-              onShowToast={showToast}
-            />
+            {navState.previewPost && (
+              <FullPostModal
+                post={posts.find((p) => p.id === navState.previewPost?.id) || navState.previewPost}
+                currentUser={currentUser}
+                isOpen={navState.previewPost !== null}
+                onClose={closePostPreview}
+                onLike={handleLikePost}
+                onDislike={handleDislikePost}
+                onReact={handleReaction}
+                onEmojiReact={handleEmojiReaction}
+                onAddComment={handleAddComment}
+                onShareClick={(p) => openShareSheet(p)}
+                onUserClick={handleOpenProfile}
+                onToggleSave={handleToggleSavePost}
+                onDeletePost={handleDeletePost}
+                onHidePost={handleHidePost}
+                onUpdateCaption={handleUpdateCaption}
+                onShowToast={showToast}
+              />
+            )}
           </Suspense>
           </DeviceFrame>
         )
@@ -2423,6 +2464,20 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('App ErrorBoundary caught error:', error);
     console.error('Component Stack:', errorInfo.componentStack);
+
+    // Auto-recover if dynamic chunk import failed due to hot-reload / dev server restart
+    if (
+      error?.message?.includes('dynamically imported module') ||
+      error?.message?.includes('Failed to fetch')
+    ) {
+      const reloadKey = 'eb_chunk_retry';
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, 'true');
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }
+    }
   }
 
   handleReload = () => {

@@ -43,7 +43,7 @@
       <!-- High-performance splash placeholder matching the Funshann splash screen -->
       <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(to bottom, #F2F6FC, #EDF3FA, #E5EEF9); font-family: sans-serif; padding: 20px; text-align: center;">
         <div style="width: 140px; height: 140px; border-radius: 50%; background: #ffffff; box-shadow: 0 20px 40px rgba(100,116,139,0.25); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.8); overflow: hidden; padding: 6px;">
-          <img src="./logo.webp" alt="Funshann Official Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'50\' fill=\'%23ffffff\'/%3E%3Ctext x=\'50\' y=\'68\' font-size=\'55\' font-weight=\'bold\' text-anchor=\'middle\' fill=\'%23000000\' font-family=\'sans-serif\'%3EF%3C/text%3E%3C/svg%3E'" />
+          <img src="/logo.webp" alt="Funshann Official Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'50\' fill=\'%23ffffff\'/%3E%3Ctext x=\'50\' y=\'68\' font-size=\'55\' font-weight=\'bold\' text-anchor=\'middle\' fill=\'%23000000\' font-family=\'sans-serif\'%3EF%3C/text%3E%3C/svg%3E'" />
         </div>
         <h2 style="margin: 0 0 8px 0; color: #1E293B; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Funshann</h2>
         <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px;">
@@ -57,67 +57,6 @@
     <!-- Permanent DOM container for Firebase Phone Auth invisible reCAPTCHA -->
     <div id="recaptcha-container"></div>
 
-    <!-- REDIRECT_ROOT_TO_DOCS_START -->
-    <script>
-      // If served directly on static hosting (like GitHub Pages serving repo root),
-      // forward to the built production application in docs/ immediately before TSX parse failure
-      (function() {
-        var host = window.location.hostname;
-        var port = window.location.port;
-        var isLocalOrDev = host === 'localhost' || host === '127.0.0.1' || host.indexOf('.run.app') !== -1 || (port && port !== '80' && port !== '443');
-        if (!isLocalOrDev) {
-          var p = window.location.pathname;
-          var dir = p.substring(0, p.lastIndexOf('/') + 1);
-          if (!p.includes('/docs') && !p.includes('/dist') && !p.includes('standalone')) {
-            window.location.replace(dir + 'docs/' + window.location.search + window.location.hash);
-          }
-        }
-      })();
-    </script>
-    <!-- REDIRECT_ROOT_TO_DOCS_END -->
-
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Fallback for primary script load errors
-      window.addEventListener('error', function(e) {
-        if (e.target && e.target.tagName === 'SCRIPT' && e.target.src && (e.target.src.includes('main.tsx') || e.target.src.includes('/assets/'))) {
-          console.error('Script load error detected:', e.target.src);
-          const root = document.getElementById('root');
-
-          // Attempt auto-recovery if static server served raw root index.html instead of built dist
-          var currentPath = window.location.pathname;
-          var currentDir = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-          var hash = window.location.hash || '';
-
-          if (!currentPath.includes('/docs') && !currentPath.includes('/dist') && !currentPath.includes('standalone.html')) {
-            fetch(currentDir + 'docs/index.html', { method: 'HEAD' })
-              .then(function(res) {
-                if (res && res.ok) {
-                  window.location.replace(currentDir + 'docs/' + hash);
-                  return true;
-                }
-                return fetch(currentDir + 'dist/index.html', { method: 'HEAD' });
-              })
-              .then(function(res) {
-                if (res && res.ok) {
-                  window.location.replace(currentDir + 'dist/' + hash);
-                  return true;
-                }
-                return fetch(currentDir + 'standalone.html', { method: 'HEAD' });
-              })
-              .then(function(res) {
-                if (res && res.ok) {
-                  window.location.replace(currentDir + 'standalone.html' + hash);
-                }
-              })
-              .catch(function() {});
-          }
-
-          if (root && root.innerHTML.includes('Initializing')) {
-            root.innerHTML = '<div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; padding: 20px; text-align: center;"><h2 style="color: #ef4444; margin-bottom: 8px;">Failed to load application</h2><p style="color: #64748b; max-width: 320px; line-height: 1.5; font-size: 14px;">The application script could not be loaded. Please try refreshing or launch the standalone version.</p><div style="display: flex; gap: 10px; margin-top: 20px;"><button onclick="window.location.reload()" style="padding: 10px 20px; background: #5B9DFF; color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer;">Try Again</button><a href="' + currentDir + 'standalone.html" style="padding: 10px 20px; background: #334155; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px; display: inline-flex; align-items: center;">Open Standalone</a></div></div>';
-          }
-        }
-      }, true);
-    </script>
   </body>
 </html>

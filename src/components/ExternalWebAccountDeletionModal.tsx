@@ -257,7 +257,6 @@ export const ExternalWebAccountDeletionModal: React.FC<ExternalWebAccountDeletio
                   />
                 ))}
               </div>
-              <p className="text-[10px] text-slate-400">Demo OTP Code: 123456</p>
 
               <div className="flex gap-2 pt-2">
                 <button

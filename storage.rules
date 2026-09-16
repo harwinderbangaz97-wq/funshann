@@ -1,56 +1,75 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Only authenticated users can read files
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Role-based authorization via Auth Custom Claims
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'moderator' ||
+        request.auth.token.admin == true ||
+        request.auth.token.moderator == true
+      );
+    }
+
+    // Default deny catch-all
     match /{allPaths=**} {
-      allow read: if request.auth != null;
+      allow read, write: if false;
     }
 
     match /users/{userId} {
-      // User Profile Avatars & Assets (max 20MB, must be images)
+      // User Profile Avatars & Banner Assets (max 20MB, image MIME type)
       match /profile/{allPaths=**} {
-        allow create, update: if request.auth != null && request.auth.uid == userId
+        allow read: if isAuthenticated();
+        allow create, update: if isOwner(userId)
                               && request.resource.size < 20 * 1024 * 1024
                               && request.resource.contentType.matches('image/.*');
-        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
-      // Posts media (max 50MB, images)
+      // Posts Media (max 50MB, image MIME type)
       match /posts/{allPaths=**} {
-        allow create, update: if request.auth != null && request.auth.uid == userId
+        allow read: if isAuthenticated();
+        allow create, update: if isOwner(userId)
                               && request.resource.size < 50 * 1024 * 1024
                               && request.resource.contentType.matches('image/.*');
-        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
-      // Stories media (max 100MB, images and videos)
+      // Stories Media (max 100MB, images and videos)
       match /stories/{allPaths=**} {
-        allow create, update: if request.auth != null && request.auth.uid == userId
+        allow read: if isAuthenticated();
+        allow create, update: if isOwner(userId)
                               && request.resource.size < 100 * 1024 * 1024
                               && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*'));
-        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
-      // Direct Messages & Chat media (images, voice audio, video)
+      // Direct Messages & Chat Media (max 100MB: images, voice audio recordings, and videos)
       match /chats/{threadId}/{allPaths=**} {
-        allow create, update: if request.auth != null && request.auth.uid == userId
-                              && request.resource.size < 100 * 1024 * 1024;
-        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow read: if isAuthenticated() && (
+          isOwner(userId) ||
+          (firestore.exists(/databases/(default)/documents/chats/$(threadId)) &&
+           (request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(threadId)).data.participantIds ||
+            request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(threadId)).data.participants)) ||
+          isAdmin()
+        );
+        allow create, update: if isOwner(userId)
+                              && request.resource.size < 100 * 1024 * 1024
+                              && (request.resource.contentType.matches('image/.*') ||
+                                  request.resource.contentType.matches('video/.*') ||
+                                  request.resource.contentType.matches('audio/.*'));
+        allow delete: if isOwner(userId) || isAdmin();
       }
-    }
-
-    // Community media & attachments (if any exist independently of users)
-    match /communities/{communityId}/{allPaths=**} {
-      allow create, update: if request.auth != null 
-                            && request.resource.size < 100 * 1024 * 1024;
-      allow delete: if request.auth != null;
-    }
-
-    // General app uploads with size and auth restrictions
-    match /uploads/{allPaths=**} {
-      allow create, update: if request.auth != null 
-                            && request.resource.size < 100 * 1024 * 1024;
-      allow delete: if request.auth != null;
     }
   }
 }

@@ -2,7 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ==========================================
+    // Core Security & Identity Helper Functions
+    // ==========================================
+
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,95 +14,353 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Role-based authorization via Auth Custom Claims (no client-side privilege tampering)
     function isAdmin() {
-      return isAuthenticated() && 
-        (request.auth.token.role == 'admin' || request.auth.token.role == 'moderator' || request.auth.token.admin == true);
+      return isAuthenticated() && (
+        ('role' in request.auth.token && (request.auth.token.role == 'admin' || request.auth.token.role == 'moderator')) ||
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('moderator' in request.auth.token && request.auth.token.moderator == true)
+      );
     }
 
-    // Follow relationships
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Default Deny-All Catch-All for unknown paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // 1. Follow Relationships
+    // ==========================================
     match /follows/{followId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      // Only the authenticated follower can create a follow relationship.
+      // Strictly prevent self-follow and verify doc ID matches follower_following format.
+      allow create: if isAuthenticated() &&
+                    (incoming().followerUid == request.auth.uid || incoming().followerId == request.auth.uid) &&
+                    (incoming().followingUid != request.auth.uid && incoming().followingId != request.auth.uid) &&
+                    (followId == request.auth.uid + '_' + incoming().followingUid || 
+                     followId == request.auth.uid + '_' + incoming().followingId);
+      // Only the follower (or admin) can remove their follow relationship
+      allow delete: if isAuthenticated() &&
+                    (existing().followerUid == request.auth.uid || 
+                     existing().followerId == request.auth.uid || 
+                     isAdmin());
+      allow update: if false;
     }
 
-    // Public / User Profiles
+    // ==========================================
+    // 2. User Profiles
+    // ==========================================
     match /users/{userId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      // User can only create their own profile document
+      allow create: if isOwner(userId) &&
+                    (incoming().id == userId || !('id' in incoming())) &&
+                    !incoming().keys().hasAny(['role', 'admin', 'isAdmin', 'moderator', 'isModerator']);
+      // User can only update their own profile; cannot modify privileged role/admin flags
+      // User A can NEVER update User B's profile or follower count directly
+      allow update: if isOwner(userId) &&
+                    !incoming().diff(existing()).affectedKeys().hasAny(['role', 'admin', 'isAdmin', 'moderator', 'isModerator']);
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
-    // Posts & Feed Items
+    // ==========================================
+    // 3. Posts & Feed Items
+    // ==========================================
     match /posts/{postId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    (incoming().userId == request.auth.uid || (incoming().user is map && incoming().user.id == request.auth.uid));
+      allow update: if (
+        // 1. Post owner updating post content (caption, image, location, etc.)
+        // Cannot change post ownership
+        isAuthenticated() &&
+        (existing().userId == request.auth.uid || (existing().user is map && existing().user.id == request.auth.uid)) &&
+        (incoming().userId == existing().userId)
+      ) || (
+        // 2. Non-owner liking or disliking:
+        // Strictly validates that the only UID added/removed from likes/dislikes is request.auth.uid,
+        // and likesCount / dislikesCount strictly match the array sizes (no arbitrary counter manipulation)
+        isAuthenticated() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'dislikes', 'likesCount', 'dislikesCount', 'updatedAt', 'syncedAt']) &&
+        incoming().likes.toSet().difference(existing().likes.toSet()).hasOnly([request.auth.uid]) &&
+        existing().likes.toSet().difference(incoming().likes.toSet()).hasOnly([request.auth.uid]) &&
+        incoming().dislikes.toSet().difference(existing().dislikes.toSet()).hasOnly([request.auth.uid]) &&
+        existing().dislikes.toSet().difference(incoming().dislikes.toSet()).hasOnly([request.auth.uid]) &&
+        incoming().likesCount == incoming().likes.size() &&
+        incoming().dislikesCount == incoming().dislikes.size()
+      ) || (
+        // 3. Non-owner adding a comment:
+        // Strictly validates that commentsCount increments by 1
+        isAuthenticated() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['comments', 'commentsCount', 'updatedAt', 'syncedAt']) &&
+        incoming().comments.size() == existing().comments.size() + 1 &&
+        incoming().commentsCount == incoming().comments.size()
+      );
+      allow delete: if isAuthenticated() &&
+                    (existing().userId == request.auth.uid || (existing().user is map && existing().user.id == request.auth.uid) || isAdmin());
     }
 
-    // Stories
+    // ==========================================
+    // 4. Stories & Temporary Reels
+    // ==========================================
     match /stories/{storyId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    (incoming().userId == request.auth.uid || (incoming().user is map && incoming().user.id == request.auth.uid));
+      allow update: if (
+        // Story owner updating story
+        isAuthenticated() &&
+        (existing().userId == request.auth.uid || (existing().user is map && existing().user.id == request.auth.uid)) &&
+        (incoming().userId == existing().userId)
+      ) || (
+        // Non-owner recording view
+        isAuthenticated() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['viewerIds', 'viewedByUsers', 'viewsCount', 'lastViewedAt', 'updatedAt', 'syncedAt']) &&
+        incoming().viewerIds.toSet().difference(existing().viewerIds.toSet()).hasOnly([request.auth.uid]) &&
+        existing().viewerIds.toSet().difference(incoming().viewerIds.toSet()).hasOnly([request.auth.uid]) &&
+        incoming().viewsCount == incoming().viewerIds.size()
+      );
+      allow delete: if isAuthenticated() &&
+                    (existing().userId == request.auth.uid || (existing().user is map && existing().user.id == request.auth.uid) || isAdmin());
     }
 
-    // Comments
+    // ==========================================
+    // 5. Comments Subcollection (if isolated)
+    // ==========================================
     match /comments/{commentId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && incoming().userId == request.auth.uid;
+      allow update: if isAuthenticated() && existing().userId == request.auth.uid && incoming().userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (existing().userId == request.auth.uid || isAdmin());
     }
 
-    // Direct Messages & 1-on-1 Chat Rooms (Deterministic chats/{chatId}/messages)
+    // ==========================================
+    // 6. Direct Messages & Chat Rooms (chats/{chatId})
+    // ==========================================
     match /chats/{chatId} {
-      allow read, write: if true;
+      // Only actual participants can read the chat room
+      allow read: if isAuthenticated() && (
+        (resource.data.participants is list && request.auth.uid in resource.data.participants) ||
+        (resource.data.participantIds is list && request.auth.uid in resource.data.participantIds)
+      );
+      // Room creation: creator must be in the participant list
+      allow create: if isAuthenticated() && (
+        (incoming().participants is list && request.auth.uid in incoming().participants) ||
+        (incoming().participantIds is list && request.auth.uid in incoming().participantIds)
+      );
+      // Room updates: participant list cannot be tampered with by ordinary users
+      allow update: if isAuthenticated() && (
+        // Must be a verified existing participant
+        ((resource.data.participants is list && request.auth.uid in resource.data.participants) ||
+         (resource.data.participantIds is list && request.auth.uid in resource.data.participantIds)) &&
+        // Non-group participant lists cannot be changed
+        (!('isGroup' in resource.data) || resource.data.isGroup != true || resource.data.adminId == request.auth.uid || (resource.data.adminIds is list && request.auth.uid in resource.data.adminIds))
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data.adminId == request.auth.uid) ||
+        isAdmin()
+      );
+
+      // Chat Messages inside room: chats/{chatId}/messages/{messageId}
+      match /messages/{messageId} {
+        // Only authorized participants of the parent chat room can read messages
+        allow read: if isAuthenticated() && (
+          resource.data.senderId == request.auth.uid ||
+          resource.data.receiverId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/chats/$(chatId)) && (
+            (get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list &&
+             request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
+            (get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds is list &&
+             request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds)
+          ))
+        );
+        // Only participants can send messages; senderId must be request.auth.uid
+        allow create: if isAuthenticated() &&
+                      incoming().senderId == request.auth.uid &&
+                      incoming().receiverId is string;
+        // Edit/Update: only sender can edit text, or recipient can update read/reactions status
+        allow update: if isAuthenticated() && (
+          // Sender editing message
+          (resource.data.senderId == request.auth.uid && incoming().senderId == resource.data.senderId) ||
+          // Recipient updating delivery/read status or reactions
+          ((resource.data.receiverId == request.auth.uid || (exists(/databases/$(database)/documents/chats/$(chatId)) && (
+             (get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list &&
+              request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants) ||
+             (get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds is list &&
+              request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds)
+           ))) &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'isDelivered', 'status', 'seenAt', 'readAt', 'reactions']))
+        );
+        // Only sender or admin can delete
+        allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+      }
     }
 
-    match /chats/{chatId}/messages/{messageId} {
-      allow read, write: if true;
-    }
-
-    // Direct Messages & Legacy Chat Threads
+    // ==========================================
+    // 7. Legacy Chat Threads & Thread Messages
+    // ==========================================
     match /chat_threads/{threadId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated() && (
+        (resource.data.participantIds is list && request.auth.uid in resource.data.participantIds) ||
+        (resource.data.participants is list && request.auth.uid in resource.data.participants)
+      );
+      allow create: if isAuthenticated() && (
+        (incoming().participantIds is list && request.auth.uid in incoming().participantIds) ||
+        (incoming().participants is list && request.auth.uid in incoming().participants)
+      );
+      allow update: if isAuthenticated() && (
+        (resource.data.participantIds is list && request.auth.uid in resource.data.participantIds) ||
+        (resource.data.participants is list && request.auth.uid in resource.data.participants)
+      );
+      allow delete: if isAuthenticated() && (
+        (resource.data.participantIds is list && request.auth.uid in resource.data.participantIds) ||
+        isAdmin()
+      );
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          resource.data.senderId == request.auth.uid ||
+          resource.data.receiverId == request.auth.uid ||
+          (exists(/databases/$(database)/documents/chat_threads/$(threadId)) && (
+            (get(/databases/$(database)/documents/chat_threads/$(threadId)).data.participantIds is list &&
+             request.auth.uid in get(/databases/$(database)/documents/chat_threads/$(threadId)).data.participantIds) ||
+            (get(/databases/$(database)/documents/chat_threads/$(threadId)).data.participants is list &&
+             request.auth.uid in get(/databases/$(database)/documents/chat_threads/$(threadId)).data.participants)
+          ))
+        );
+        allow create: if isAuthenticated() && incoming().senderId == request.auth.uid;
+        allow update: if isAuthenticated() && (
+          (resource.data.senderId == request.auth.uid && incoming().senderId == resource.data.senderId) ||
+          (resource.data.receiverId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'isDelivered', 'status', 'seenAt', 'readAt', 'reactions']))
+        );
+        allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+      }
     }
 
-    match /chat_threads/{threadId}/messages/{messageId} {
-      allow read, write: if true;
-    }
-
-    // Communities & Community Messages
+    // ==========================================
+    // 8. Communities & Community Rooms
+    // ==========================================
     match /communities/{communityId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        incoming().creatorId == request.auth.uid ||
+        incoming().adminId == request.auth.uid
+      );
+      // Only group creator / group admins can modify group settings, adminIds, memberIds
+      allow update: if isAuthenticated() && (
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.adminId == request.auth.uid ||
+        (resource.data.adminIds is list && request.auth.uid in resource.data.adminIds) ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.adminId == request.auth.uid ||
+        isAdmin()
+      );
+
+      match /messages/{messageId} {
+        // User must actually be a member before reading/sending messages in a private community
+        allow read: if isAuthenticated() && (
+          exists(/databases/$(database)/documents/communities/$(communityId)) && (
+            get(/databases/$(database)/documents/communities/$(communityId)).data.isPublic == true ||
+            (get(/databases/$(database)/documents/communities/$(communityId)).data.memberIds is list &&
+             request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.memberIds)
+          )
+        );
+        allow create: if isAuthenticated() &&
+                      incoming().senderId == request.auth.uid &&
+                      exists(/databases/$(database)/documents/communities/$(communityId)) &&
+                      (get(/databases/$(database)/documents/communities/$(communityId)).data.isPublic == true ||
+                       (get(/databases/$(database)/documents/communities/$(communityId)).data.memberIds is list &&
+                        request.auth.uid in get(/databases/$(database)/documents/communities/$(communityId)).data.memberIds));
+        allow update: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+        allow delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+      }
     }
 
-    match /communities/{communityId}/messages/{messageId} {
-      allow read, write: if true;
-    }
-
-    // Notifications
+    // ==========================================
+    // 9. Notifications
+    // ==========================================
     match /notifications/{notificationId} {
-      allow read, write: if true;
+      // User can only read notifications intended for them
+      allow read: if isAuthenticated() && (
+        resource.data.targetUserId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      );
+      // In production, notifications must be created via trusted Cloud Functions / Admin SDK
+      // Normal clients cannot generate arbitrary notifications for another user
+      allow create: if isAdmin() || (
+        isAuthenticated() && (
+          incoming().targetUserId == request.auth.uid ||
+          incoming().userId == request.auth.uid
+        )
+      );
+      // Users can only update their own received notification state (e.g. read/unread)
+      allow update: if isAuthenticated() && (
+        resource.data.targetUserId == request.auth.uid ||
+        resource.data.userId == request.auth.uid
+      ) && incoming().diff(existing()).affectedKeys().hasOnly(['read', 'isRead', 'readAt', 'seenAt', 'syncedAt']);
+      allow delete: if isAuthenticated() && (
+        resource.data.targetUserId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
     }
 
-    // Safety & Moderation: User Reports (Confidential)
+    // ==========================================
+    // 10. Universal Reports & Grievances
+    // ==========================================
     match /universal_reports/{reportId} {
-      allow create: if true;
+      // Any authenticated user can submit a safety report
+      allow create: if isAuthenticated() && (
+        incoming().userId == request.auth.uid ||
+        incoming().reporterId == request.auth.uid
+      );
+      // Once submitted, normal users cannot edit or delete reports; only custom claim admins can
       allow read, update, delete: if isAdmin();
     }
 
-    // Bug Reports
     match /bug_reports/{bugId} {
-      allow create: if true;
+      allow create: if isAuthenticated() && (
+        incoming().userId == request.auth.uid ||
+        incoming().reporterId == request.auth.uid
+      );
       allow read, update, delete: if isAdmin();
     }
 
-    // Moderation Logs (Staff Only)
     match /moderation_logs/{logId} {
       allow read, write: if isAdmin();
     }
 
-    // User Grievances / Formal Complaints
     match /grievances/{grievanceId} {
-      allow create, read: if true;
+      allow create: if isAuthenticated() && (
+        incoming().userId == request.auth.uid ||
+        incoming().reporterId == request.auth.uid
+      );
+      allow read: if isAdmin() || (
+        isAuthenticated() && (
+          resource.data.userId == request.auth.uid ||
+          resource.data.reporterId == request.auth.uid
+        )
+      );
       allow update, delete: if isAdmin();
+    }
+
+    // ==========================================
+    // 11. Admins Collection
+    // ==========================================
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
     }
   }
 }

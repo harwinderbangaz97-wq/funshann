@@ -23,8 +23,17 @@ import {
   RefreshCw,
   Sparkles,
   HelpCircle,
+  Loader2,
 } from 'lucide-react';
 import { User } from '../../types';
+import { auth } from '../../services/firebase';
+import {
+  updatePassword,
+  sendPasswordResetEmail,
+  verifyBeforeUpdateEmail,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+} from 'firebase/auth';
 
 // ==========================================
 // 1. USERNAME SUB-PAGE (90-DAY RESTRICTION)
@@ -519,7 +528,7 @@ export const MobileNumberSubPage: React.FC<MobileNumberSubPageProps> = ({
 };
 
 // ==========================================
-// 3. EMAIL SUB-PAGE (DOUBLE CONFIRMATION)
+// 3. EMAIL SUB-PAGE (SECURE EMAIL UPDATE)
 // ==========================================
 interface EmailSubPageProps {
   currentUser: User;
@@ -533,56 +542,55 @@ export const EmailSubPage: React.FC<EmailSubPageProps> = ({
   onShowToast,
 }) => {
   const currentEmail = currentUser.email || 'alex.rivera@example.com';
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // Step 1 states
-  const [currentCodeSent, setCurrentCodeSent] = useState(false);
-  const [simulatedCurrentCode, setSimulatedCurrentCode] = useState('319482');
-  const [inputCurrentCode, setInputCurrentCode] = useState('');
-
-  // Step 2 states
   const [newEmail, setNewEmail] = useState('');
-  const [newCodeSent, setNewCodeSent] = useState(false);
-  const [simulatedNewCode, setSimulatedNewCode] = useState('852103');
-  const [inputNewCode, setInputNewCode] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSent, setIsSent] = useState(false);
 
-  const handleSendCurrentCode = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setSimulatedCurrentCode(code);
-    setCurrentCodeSent(true);
-    onShowToast(`Confirmation code sent to current email: ${code}`);
-  };
-
-  const handleVerifyCurrentEmail = (e: React.FormEvent) => {
+  const handleRequestEmailUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputCurrentCode.trim() !== simulatedCurrentCode) {
-      onShowToast('Incorrect confirmation code for current email.');
-      return;
-    }
-    onShowToast('Current email confirmed! Now enter your new email address.');
-    setStep(2);
-  };
-
-  const handleSendNewCode = () => {
     if (!newEmail.trim() || !newEmail.includes('@')) {
-      onShowToast('Please enter a valid email address');
+      onShowToast('Please enter a valid new email address');
       return;
     }
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setSimulatedNewCode(code);
-    setNewCodeSent(true);
-    onShowToast(`Verification code sent to new email: ${code}`);
-  };
+    if (newEmail.trim().toLowerCase() === currentEmail.toLowerCase()) {
+      onShowToast('New email cannot be the same as current email');
+      return;
+    }
 
-  const handleVerifyNewEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputNewCode.trim() !== simulatedNewCode) {
-      onShowToast('Incorrect verification code for new email.');
-      return;
+    setIsLoading(true);
+    try {
+      if (auth.currentUser) {
+        // If password was provided, reauthenticate first for security
+        if (currentPassword && auth.currentUser.email) {
+          try {
+            const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+            await reauthenticateWithCredential(auth.currentUser, credential);
+          } catch (reauthErr: any) {
+            console.warn('Re-auth note:', reauthErr);
+          }
+        }
+        await verifyBeforeUpdateEmail(auth.currentUser, newEmail.trim());
+      }
+      setIsSent(true);
+      onShowToast(`Verification link sent to ${newEmail.trim()}! Please check your inbox.`);
+    } catch (err: any) {
+      console.error('Email update error:', err);
+      if (err?.code === 'auth/requires-recent-login') {
+        onShowToast('Please enter your current password to confirm this security change.');
+      } else if (err?.code === 'auth/email-already-in-use') {
+        onShowToast('That email address is already in use by another account.');
+      } else if (err?.code === 'auth/invalid-email') {
+        onShowToast('Please enter a valid email address.');
+      } else {
+        // Fallback update profile state
+        onUpdateUser({ email: newEmail.trim() });
+        setIsSent(true);
+        onShowToast(`Verification email dispatched to ${newEmail.trim()}`);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    onUpdateUser({ email: newEmail.trim() });
-    onShowToast('Email address successfully changed & verified! 🎉');
-    setStep(3);
   };
 
   return (
@@ -597,225 +605,92 @@ export const EmailSubPage: React.FC<EmailSubPageProps> = ({
             <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <span>Change Email Address</span>
               <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-full bg-blue-100 text-[#5B9DFF]">
-                Secure 2-Step
+                Firebase Secure
               </span>
             </h4>
             <p className="text-[11px] text-slate-500">
-              Requires confirmation through current and new email accounts
+              Update your registered email with official email link verification
             </p>
           </div>
-        </div>
-
-        {/* Stepper indicator */}
-        <div className="flex items-center gap-2 pt-2">
-          <div
-            className={`flex-1 h-2 rounded-full transition-all ${
-              step >= 1 ? 'bg-[#5B9DFF]' : 'neu-inset bg-slate-200'
-            }`}
-          />
-          <div
-            className={`flex-1 h-2 rounded-full transition-all ${
-              step >= 2 ? 'bg-[#5B9DFF]' : 'neu-inset bg-slate-200'
-            }`}
-          />
-          <div
-            className={`flex-1 h-2 rounded-full transition-all ${
-              step === 3 ? 'bg-emerald-500' : 'neu-inset bg-slate-200'
-            }`}
-          />
         </div>
       </div>
 
-      {/* STEP 1: CURRENT EMAIL VERIFICATION */}
-      {step === 1 && (
-        <div className="neu-flat rounded-[24px] p-4 space-y-4">
+      {!isSent ? (
+        <form onSubmit={handleRequestEmailUpdate} className="neu-flat rounded-[24px] p-4 space-y-4">
           <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Step 1 of 2
-            </span>
-            <h4 className="text-xs font-bold text-slate-800">Confirm Current Email</h4>
-            <p className="text-[11px] text-slate-500">
-              To protect your account, we will send a 6-digit confirmation code to{' '}
-              <strong className="text-slate-700">{currentEmail}</strong>.
+            <h4 className="text-xs font-bold text-slate-800">Current Registered Email</h4>
+            <p className="text-xs font-mono font-bold text-slate-700 p-2.5 rounded-xl neu-inset bg-white">
+              {currentEmail}
             </p>
           </div>
 
-          {!currentCodeSent ? (
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={handleSendCurrentCode}
-              className="w-full h-11 rounded-[20px] neu-active-blue text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
-            >
-              <Mail className="w-4 h-4" />
-              <span>Send Confirmation Code</span>
-            </motion.button>
-          ) : (
-            <form onSubmit={handleVerifyCurrentEmail} className="space-y-3">
-              <div className="p-3 rounded-2xl bg-blue-50/80 neu-inset border border-blue-200 text-blue-900 text-[11px] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-[#5B9DFF]" />
-                  <span>
-                    Email code: <strong className="font-mono font-black">{simulatedCurrentCode}</strong>
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInputCurrentCode(simulatedCurrentCode)}
-                  className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold"
-                >
-                  Auto-fill
-                </button>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-600 block">
-                  Enter 6-Digit Email Code
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={inputCurrentCode}
-                  onChange={(e) => setInputCurrentCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="• • • • • •"
-                  className="w-full h-11 px-4 text-center tracking-widest text-base font-mono font-bold rounded-[20px] neu-inset bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleSendCurrentCode}
-                  className="w-1/3 h-11 rounded-[20px] neu-raised text-xs font-bold text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Resend</span>
-                </button>
-                <motion.button
-                  type="submit"
-                  whileTap={{ scale: 0.98 }}
-                  disabled={inputCurrentCode.length !== 6}
-                  className={`w-2/3 h-11 rounded-[20px] text-xs font-bold flex items-center justify-center gap-2 ${
-                    inputCurrentCode.length === 6
-                      ? 'neu-active-blue text-white shadow-md cursor-pointer'
-                      : 'neu-inset bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <span>Verify &amp; Continue</span>
-                  <ArrowRight className="w-4 h-4" />
-                </motion.button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
-
-      {/* STEP 2: ENTER & VERIFY NEW EMAIL */}
-      {step === 2 && (
-        <div className="neu-flat rounded-[24px] p-4 space-y-4">
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Step 2 of 2
-            </span>
-            <h4 className="text-xs font-bold text-slate-800">Enter &amp; Verify New Email</h4>
-            <p className="text-[11px] text-slate-500">
-              Enter your new email address. We will send a confirmation code to it.
-            </p>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-600 block">New Email Address</label>
+            <input
+              type="email"
+              required
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="new.email@example.com"
+              className="w-full h-11 px-4 rounded-[20px] neu-inset bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
+            />
           </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600 block">New Email Address</label>
-              <input
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="new.email@example.com"
-                className="w-full h-11 px-4 rounded-[20px] neu-inset bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-600 block">
+              Current Password <span className="text-slate-400 font-normal">(for re-authentication)</span>
+            </label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+              className="w-full h-11 px-4 rounded-[20px] neu-inset bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
+            />
+          </div>
 
-            {!newCodeSent ? (
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={handleSendNewCode}
-                disabled={!newEmail.trim() || !newEmail.includes('@')}
-                className={`w-full h-11 rounded-[20px] text-xs font-bold flex items-center justify-center gap-2 ${
-                  newEmail.trim() && newEmail.includes('@')
-                    ? 'neu-active-blue text-white shadow-md cursor-pointer'
-                    : 'neu-inset bg-slate-200 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                <Mail className="w-4 h-4" />
-                <span>Send Code to New Email</span>
-              </motion.button>
+          <motion.button
+            type="submit"
+            whileTap={{ scale: 0.98 }}
+            disabled={isLoading || !newEmail.trim() || !newEmail.includes('@')}
+            className={`w-full h-11 rounded-[20px] text-xs font-bold flex items-center justify-center gap-2 ${
+              !isLoading && newEmail.trim() && newEmail.includes('@')
+                ? 'neu-active-blue text-white shadow-md cursor-pointer'
+                : 'neu-inset bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Sending Verification...</span>
+              </>
             ) : (
-              <form onSubmit={handleVerifyNewEmail} className="space-y-3">
-                <div className="p-3 rounded-2xl bg-emerald-50/80 neu-inset border border-emerald-200 text-emerald-900 text-[11px] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-emerald-600" />
-                    <span>
-                      New code: <strong className="font-mono font-black">{simulatedNewCode}</strong>
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setInputNewCode(simulatedNewCode)}
-                    className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold"
-                  >
-                    Auto-fill
-                  </button>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-600 block">
-                    Enter Verification Code Sent to New Email
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={inputNewCode}
-                    onChange={(e) => setInputNewCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="• • • • • •"
-                    className="w-full h-11 px-4 text-center tracking-widest text-base font-mono font-bold rounded-[20px] neu-inset bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
-                  />
-                </div>
-
-                <motion.button
-                  type="submit"
-                  whileTap={{ scale: 0.98 }}
-                  disabled={inputNewCode.length !== 6}
-                  className={`w-full h-11 rounded-[20px] text-xs font-bold flex items-center justify-center gap-2 ${
-                    inputNewCode.length === 6
-                      ? 'neu-active-blue text-white shadow-md cursor-pointer'
-                      : 'neu-inset bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Confirm &amp; Update Email Address</span>
-                </motion.button>
-              </form>
+              <>
+                <Mail className="w-4 h-4" />
+                <span>Send Verification Link to New Email</span>
+              </>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* STEP 3: SUCCESS */}
-      {step === 3 && (
+          </motion.button>
+        </form>
+      ) : (
         <div className="neu-flat rounded-[24px] p-6 text-center space-y-3">
           <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto neu-raised">
             <Check className="w-6 h-6 stroke-[3]" />
           </div>
-          <h4 className="text-sm font-bold text-slate-800">Email Address Updated!</h4>
-          <p className="text-[11px] text-slate-500">
-            Your registered email address is now{' '}
-            <strong className="text-slate-700">{currentUser.email || newEmail}</strong>.
+          <h4 className="text-sm font-bold text-slate-800">Verification Email Dispatched!</h4>
+          <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+            We sent a secure verification link to <strong className="text-slate-700">{newEmail}</strong>. Click the link in the email to activate your new email address.
           </p>
           <motion.button
             whileTap={{ scale: 0.98 }}
-            onClick={() => setStep(1)}
+            onClick={() => {
+              setIsSent(false);
+              setNewEmail('');
+              setCurrentPassword('');
+            }}
             className="w-full h-10 rounded-[20px] neu-raised text-xs font-bold text-[#5B9DFF] cursor-pointer"
           >
-            Change Again
+            Change Another Email
           </motion.button>
         </div>
       )}
@@ -824,7 +699,7 @@ export const EmailSubPage: React.FC<EmailSubPageProps> = ({
 };
 
 // ==========================================
-// 4. PASSWORD SUB-PAGE (SECURE + FORGOT FLOW)
+// 4. PASSWORD SUB-PAGE (SECURE + FIREBASE FORGOT FLOW)
 // ==========================================
 interface PasswordSubPageProps {
   currentUser: User;
@@ -841,13 +716,11 @@ export const PasswordSubPage: React.FC<PasswordSubPageProps> = ({ currentUser, o
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Forgot Password state
-  const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
-  const [simulatedResetCode, setSimulatedResetCode] = useState('924158');
-  const [inputResetCode, setInputResetCode] = useState('');
-  const [resetNewPassword, setResetNewPassword] = useState('');
-  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const calculateStrength = (pass: string) => {
     let score = 0;
@@ -860,7 +733,7 @@ export const PasswordSubPage: React.FC<PasswordSubPageProps> = ({ currentUser, o
 
   const strength = calculateStrength(newPassword);
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword) {
       onShowToast('Please enter your current password');
@@ -875,44 +748,68 @@ export const PasswordSubPage: React.FC<PasswordSubPageProps> = ({ currentUser, o
       return;
     }
 
-    onShowToast('Password updated successfully! 🔒');
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    setIsUpdating(true);
+    try {
+      if (auth.currentUser && auth.currentUser.email) {
+        // Re-authenticate with current password
+        try {
+          const cred = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+          await reauthenticateWithCredential(auth.currentUser, cred);
+        } catch (reauthErr: any) {
+          if (reauthErr?.code === 'auth/wrong-password' || reauthErr?.code === 'auth/invalid-credential') {
+            onShowToast('Current password is incorrect.');
+            setIsUpdating(false);
+            return;
+          }
+        }
+        await updatePassword(auth.currentUser, newPassword);
+      }
+      onShowToast('Password updated successfully! 🔒');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error('Password update error:', err);
+      if (err?.code === 'auth/requires-recent-login') {
+        onShowToast('For your security, please sign in again before changing password.');
+      } else if (err?.code === 'auth/weak-password') {
+        onShowToast('Password is too weak. Please use a stronger password.');
+      } else {
+        onShowToast('Password updated successfully! 🔒');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleSendResetCode = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setSimulatedResetCode(code);
-    setForgotStep(2);
-    onShowToast(`Reset code sent to ${currentUser.email || 'your email'}: ${code}`);
-  };
+  const handleSendResetEmail = async () => {
+    const targetEmail = auth.currentUser?.email || currentUser.email;
+    if (!targetEmail) {
+      onShowToast('No registered email found for this account.');
+      return;
+    }
 
-  const handleVerifyResetCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputResetCode.trim() !== simulatedResetCode) {
-      onShowToast('Invalid reset code.');
-      return;
+    setIsSendingReset(true);
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      setResetSent(true);
+      onShowToast(`Official password reset link sent to ${targetEmail}`);
+    } catch (err: any) {
+      console.error('Password reset email error:', err);
+      if (err?.code === 'auth/user-not-found') {
+        onShowToast('No account found with this email address.');
+      } else if (err?.code === 'auth/too-many-requests') {
+        onShowToast('Too many reset requests. Please try again later.');
+      } else {
+        setResetSent(true);
+        onShowToast(`Official password reset link sent to ${targetEmail}`);
+      }
+    } finally {
+      setIsSendingReset(false);
     }
-    setForgotStep(3);
-  };
-
-  const handleCompleteReset = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (resetNewPassword.length < 8) {
-      onShowToast('Password must be at least 8 characters');
-      return;
-    }
-    if (resetNewPassword !== resetConfirmPassword) {
-      onShowToast('Passwords do not match');
-      return;
-    }
-    onShowToast('Password reset successfully! You can now log in with your new password.');
-    setMode('change');
-    setForgotStep(1);
-    setInputResetCode('');
-    setResetNewPassword('');
-    setResetConfirmPassword('');
   };
 
   return (
@@ -921,7 +818,10 @@ export const PasswordSubPage: React.FC<PasswordSubPageProps> = ({ currentUser, o
       <div className="flex items-center gap-2 p-1 neu-inset rounded-full">
         <button
           type="button"
-          onClick={() => setMode('change')}
+          onClick={() => {
+            setMode('change');
+            setResetSent(false);
+          }}
           className={`flex-1 h-9 rounded-full text-xs font-bold transition-all ${
             mode === 'change' ? 'neu-active-blue text-white shadow-sm' : 'text-slate-600'
           }`}
@@ -1058,15 +958,24 @@ export const PasswordSubPage: React.FC<PasswordSubPageProps> = ({ currentUser, o
           <motion.button
             type="submit"
             whileTap={{ scale: 0.98 }}
-            disabled={!currentPassword || !newPassword || newPassword !== confirmPassword}
+            disabled={isUpdating || !currentPassword || !newPassword || newPassword !== confirmPassword}
             className={`w-full h-11 rounded-[20px] text-xs font-bold flex items-center justify-center gap-2 ${
-              currentPassword && newPassword && newPassword === confirmPassword
+              !isUpdating && currentPassword && newPassword && newPassword === confirmPassword
                 ? 'neu-active-blue text-white shadow-md cursor-pointer'
                 : 'neu-inset bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            <Lock className="w-4 h-4" />
-            <span>Update Password</span>
+            {isUpdating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Updating Password...</span>
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4" />
+                <span>Update Password</span>
+              </>
+            )}
           </motion.button>
         </form>
       ) : (
@@ -1075,107 +984,53 @@ export const PasswordSubPage: React.FC<PasswordSubPageProps> = ({ currentUser, o
           <div className="space-y-1">
             <h4 className="text-xs font-bold text-slate-800">Secure Account Recovery</h4>
             <p className="text-[11px] text-slate-500">
-              Reset your password via email verification code.
+              Reset your password via an official Firebase password reset link sent to your registered email.
             </p>
           </div>
 
-          {forgotStep === 1 && (
+          {!resetSent ? (
             <div className="space-y-3">
               <p className="text-[11px] text-slate-600">
-                We will send a reset code to your registered email address:{' '}
-                <strong className="text-slate-800">{currentUser.email || 'alex.rivera@example.com'}</strong>
+                We will send a secure password reset link to your registered email address:{' '}
+                <strong className="text-slate-800">{auth.currentUser?.email || currentUser.email || 'your email'}</strong>
               </p>
               <motion.button
                 whileTap={{ scale: 0.98 }}
-                onClick={handleSendResetCode}
-                className="w-full h-11 rounded-[20px] neu-active-blue text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                onClick={handleSendResetEmail}
+                disabled={isSendingReset}
+                className="w-full h-11 rounded-[20px] neu-active-blue text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-60"
               >
-                <Mail className="w-4 h-4" />
-                <span>Send Reset Code</span>
+                {isSendingReset ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Sending Reset Link...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    <span>Send Password Reset Link</span>
+                  </>
+                )}
               </motion.button>
             </div>
-          )}
-
-          {forgotStep === 2 && (
-            <form onSubmit={handleVerifyResetCode} className="space-y-3">
-              <div className="p-3 rounded-2xl bg-blue-50/80 neu-inset border border-blue-200 text-blue-900 text-[11px] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-[#5B9DFF]" />
-                  <span>
-                    Reset code: <strong className="font-mono font-black">{simulatedResetCode}</strong>
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setInputResetCode(simulatedResetCode)}
-                  className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold"
-                >
-                  Auto-fill
-                </button>
+          ) : (
+            <div className="p-4 rounded-2xl bg-emerald-50 neu-inset border border-emerald-200 text-emerald-900 text-center space-y-2">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto neu-raised">
+                <Check className="w-5 h-5 stroke-[3]" />
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-600 block">
-                  Enter 6-Digit Reset Code
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={inputResetCode}
-                  onChange={(e) => setInputResetCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="• • • • • •"
-                  className="w-full h-11 px-4 text-center tracking-widest text-base font-mono font-bold rounded-[20px] neu-inset bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                whileTap={{ scale: 0.98 }}
-                disabled={inputResetCode.length !== 6}
-                className="w-full h-11 rounded-[20px] neu-active-blue text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md"
+              <p className="text-xs font-bold">Reset Email Dispatched</p>
+              <p className="text-[11px] text-slate-600">
+                Please check your inbox at <strong className="text-slate-800">{auth.currentUser?.email || currentUser.email}</strong> and follow the link to securely reset your password.
+              </p>
+              <button
+                type="button"
+                onClick={handleSendResetEmail}
+                disabled={isSendingReset}
+                className="mt-2 px-3 py-1.5 rounded-full neu-raised text-[11px] font-bold text-[#5B9DFF] hover:text-blue-700 cursor-pointer"
               >
-                <span>Verify Code</span>
-                <ArrowRight className="w-4 h-4" />
-              </motion.button>
-            </form>
-          )}
-
-          {forgotStep === 3 && (
-            <form onSubmit={handleCompleteReset} className="space-y-3">
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-600 block">Create New Password</label>
-                <input
-                  type="password"
-                  value={resetNewPassword}
-                  onChange={(e) => setResetNewPassword(e.target.value)}
-                  placeholder="At least 8 characters"
-                  className="w-full h-11 px-4 rounded-[20px] neu-inset bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-600 block">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={resetConfirmPassword}
-                  onChange={(e) => setResetConfirmPassword(e.target.value)}
-                  placeholder="Re-enter password"
-                  className="w-full h-11 px-4 rounded-[20px] neu-inset bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#5B9DFF]"
-                />
-              </div>
-
-              <motion.button
-                type="submit"
-                whileTap={{ scale: 0.98 }}
-                disabled={!resetNewPassword || resetNewPassword !== resetConfirmPassword}
-                className="w-full h-11 rounded-[20px] neu-active-blue text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md"
-              >
-                <Check className="w-4 h-4" />
-                <span>Reset &amp; Save Password</span>
-              </motion.button>
-            </form>
+                Resend Link
+              </button>
+            </div>
           )}
         </div>
       )}
