@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AppPermissionsState, AppPermissionType, AppPermissionStatus } from '../types';
 import { PERMISSION_DEFINITIONS, PERMISSION_ORDER, saveStoredPermissions } from '../services/permissionService';
+import { FUNSHANN_LOGO_URL } from '../utils/brand';
 
 interface AndroidSystemSettingsModalProps {
   isOpen: boolean;
@@ -98,7 +99,7 @@ export const AndroidSystemSettingsModal: React.FC<AndroidSystemSettingsModalProp
           {/* App Header Card */}
           <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700 shadow-xs">
             <img
-              src="/logo.png"
+              src={FUNSHANN_LOGO_URL}
               alt="Funshann"
               className="w-12 h-12 rounded-2xl object-cover shadow-sm border border-slate-200"
               onError={(e) => {

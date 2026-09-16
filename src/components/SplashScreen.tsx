@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
+import { FUNSHANN_LOGO_URL } from '../utils/brand';
 
 interface SplashScreenProps {
   onFinish?: () => void;
@@ -42,7 +43,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish, isReady = 
         {/* Center 3D Circular Medallion with Funshann Logo */}
         <div className="w-56 h-56 rounded-full bg-gradient-to-b from-[#FFFFFF] to-[#F4F7FB] shadow-[0_24px_50px_-8px_rgba(100,116,139,0.32),0_10px_20px_-4px_rgba(148,163,184,0.2),inset_0_2px_6px_rgba(255,255,255,0.95)] flex items-center justify-center border border-white/80 p-3 mb-6 overflow-hidden">
           <img
-            src="/logo.png"
+            src={FUNSHANN_LOGO_URL}
             alt="Funshann Official Logo"
             className="w-full h-full object-cover rounded-full shadow-inner"
             onError={(e) => {

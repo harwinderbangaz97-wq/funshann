@@ -35,6 +35,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { AndroidGestureBack } from './components/AndroidGestureBack';
 import { SplashScreen } from './components/SplashScreen';
 import { WelcomeAuthScreen } from './components/WelcomeAuthScreen';
+import { FUNSHANN_LOGO_URL } from './utils/brand';
 import {
   ensureFirebaseAuth,
   syncUserProfileToFirestore,
@@ -2438,7 +2439,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
       return (
         <div className="min-h-screen bg-[#F4F7FB] flex flex-col items-center justify-center p-6 text-center font-['Plus_Jakarta_Sans',sans-serif]">
           <div className="w-16 h-16 rounded-full bg-white shadow-md flex items-center justify-center mb-4 border border-slate-100">
-            <img src="/logo.png" alt="Funshann" className="w-12 h-12 rounded-full object-cover" />
+            <img src={FUNSHANN_LOGO_URL} alt="Funshann" className="w-12 h-12 rounded-full object-cover" />
           </div>
           <h2 className="text-lg font-bold text-slate-800 mb-1">Funshann encountered a temporary issue</h2>
           <p className="text-xs text-slate-500 mb-6 max-w-xs">

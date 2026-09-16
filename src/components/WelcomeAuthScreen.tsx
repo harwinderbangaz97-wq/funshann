@@ -17,6 +17,7 @@ import {
   Copy,
 } from 'lucide-react';
 import { User, ThemeMode } from '../types';
+import { FUNSHANN_LOGO_URL } from '../utils/brand';
 
 const LegalDocumentsSubPage = React.lazy(() =>
   import('./settings/LegalDocumentsSubPage').then((m) => ({ default: m.LegalDocumentsSubPage }))
@@ -605,7 +606,7 @@ export const WelcomeAuthScreen: React.FC<WelcomeAuthScreenProps> = ({
         <div className="flex flex-col items-center text-center">
           <div className="w-20 h-20 rounded-2xl bg-white shadow-[0_12px_24px_rgba(100,116,139,0.12)] border border-white flex items-center justify-center p-1.5 overflow-hidden mb-3">
             <img
-              src="/logo.png"
+              src={FUNSHANN_LOGO_URL}
               alt="Funshann Official Logo"
               className="w-full h-full object-cover rounded-xl"
               onError={(e) => {

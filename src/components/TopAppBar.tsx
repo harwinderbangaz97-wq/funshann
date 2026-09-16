@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { useTranslation } from '../context/LanguageContext';
+import { FUNSHANN_LOGO_URL } from '../utils/brand';
 
 interface TopAppBarProps {
   unreadNotificationsCount: number;
@@ -69,7 +70,7 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           className="text-left focus:outline-none group flex items-center gap-2.5"
         >
           <img
-            src="/logo.png"
+            src={FUNSHANN_LOGO_URL}
             alt="Funshann"
             loading="lazy"
             decoding="async"
