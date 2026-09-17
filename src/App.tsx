@@ -464,18 +464,27 @@ function AppContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreatingStory, setIsCreatingStory] = useState(false);
 
-  // Keep currentUser.postsCount synchronized with actual posts
+  // Keep currentUser.postsCount synchronized with actual user posts from Firestore
   useEffect(() => {
-    if (!currentUser || !currentUser.id) return;
-    const myPosts = posts.filter((p) => isPostByUserId(p, currentUser.id));
-    setCurrentUser((prev) => {
-      if (prev.postsCount === myPosts.length) return prev;
-      return {
-        ...prev,
-        postsCount: myPosts.length,
-      };
-    });
-  }, [currentUser?.id, posts]);
+    if (!currentUser || !currentUser.id || currentUser.id === 'user_fallback') return;
+    let isMounted = true;
+    getUserPostsCountFromFirestore(currentUser.id)
+      .then((count) => {
+        if (isMounted && typeof count === 'number') {
+          setCurrentUser((prev) => {
+            if (prev.postsCount === count) return prev;
+            return {
+              ...prev,
+              postsCount: count,
+            };
+          });
+        }
+      })
+      .catch(console.warn);
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -1385,6 +1394,29 @@ function AppContent() {
       }
     } catch (err) {
       console.error('Follow error:', err);
+      // Rollback optimistic state
+      setUsers((prevUsers) =>
+        prevUsers.map((u) => {
+          if (u.id === targetUserId) {
+            return {
+              ...u,
+              isFollowing: isCurrentlyFollowing,
+              followersCount: Math.max(0, (u.followersCount || 0) + (isCurrentlyFollowing ? 1 : -1)),
+            };
+          }
+          return u;
+        })
+      );
+      setCurrentUser((prev) => {
+        const rollbackFollowing = isCurrentlyFollowing
+          ? Array.from(new Set([...(prev.following || []), targetUserId]))
+          : (prev.following || []).filter((id) => id !== targetUserId);
+        return {
+          ...prev,
+          following: rollbackFollowing,
+          followingCount: rollbackFollowing.length,
+        };
+      });
       showToast('Error updating follow status');
     }
   };

@@ -170,9 +170,6 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'posts' | 'saved'>('posts');
   const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards');
   const [isIndividualMenuOpen, setIsIndividualMenuOpen] = useState(false);
-  const [listModalType, setListModalType] = useState<'followers' | 'following' | null>(null);
-  const [modalUsers, setModalUsers] = useState<User[]>([]);
-  const [isLoadingModalUsers, setIsLoadingModalUsers] = useState<boolean>(false);
   const postGridRef = useRef<HTMLDivElement | null>(null);
   const isEditModalOpen = navState.isEditProfileOpen;
   const selectedPreviewPost = navState.previewPost;
@@ -230,31 +227,25 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
     : (currentUser?.id || '');
 
   const [realPostsCount, setRealPostsCount] = useState<number>(() => {
-    return Math.max(
-      Array.isArray(userPosts) ? userPosts.length : 0,
-      displayedUser.postsCount ?? 0
-    );
+    return Array.isArray(userPosts) ? userPosts.length : (displayedUser.postsCount ?? 0);
   });
-
-  // Real calculated counters based on existing Firestore records without dropping counts
-  const effectivePostsCount = Math.max(
-    realPostsCount,
-    Array.isArray(userPosts) ? userPosts.length : 0,
-    displayedUser.postsCount ?? 0
-  );
 
   const [realFollowersCount, setRealFollowersCount] = useState<number>(() => displayedUser.followersCount ?? 0);
   const [realFollowingCount, setRealFollowingCount] = useState<number>(() => displayedUser.followingCount ?? 0);
 
   useEffect(() => {
-    setRealPostsCount((prev) => Math.max(
-      prev,
-      Array.isArray(userPosts) ? userPosts.length : 0,
-      displayedUser.postsCount ?? 0
-    ));
+    // Synchronize initial counts whenever target profile user ID changes
+    setRealPostsCount(Array.isArray(userPosts) ? userPosts.length : (displayedUser.postsCount ?? 0));
     setRealFollowersCount(displayedUser.followersCount ?? 0);
     setRealFollowingCount(displayedUser.followingCount ?? 0);
-  }, [displayedUser.id, displayedUser.postsCount, displayedUser.followersCount, displayedUser.followingCount, userPosts?.length]);
+  }, [targetProfileUserId]);
+
+  const [listModalType, setListModalType] = useState<'followers' | 'following' | null>(null);
+  const listModalTypeRef = useRef<'followers' | 'following' | null>(null);
+  listModalTypeRef.current = listModalType;
+  const [modalUsers, setModalUsers] = useState<User[]>([]);
+  const [isLoadingModalUsers, setIsLoadingModalUsers] = useState<boolean>(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!targetProfileUserId || targetProfileUserId === 'user_fallback') return;
@@ -264,7 +255,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
     getUserPostsCountFromFirestore(targetProfileUserId)
       .then((count) => {
         if (isMounted && typeof count === 'number') {
-          setRealPostsCount((prev) => Math.max(prev, count, Array.isArray(userPosts) ? userPosts.length : 0));
+          setRealPostsCount(count);
         }
       })
       .catch(console.warn);
@@ -291,33 +282,46 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
       if (!isMounted || !Array.isArray(records)) return;
       const followings = new Set(
         records
-          .filter((f) => f && f.followerId === targetProfileUserId && f.followingId !== targetProfileUserId)
-          .map((f) => f.followingId)
+          .filter((f) => f && (f.followerId === targetProfileUserId || f.followerUid === targetProfileUserId) && f.followingId !== targetProfileUserId && f.followingUid !== targetProfileUserId)
+          .map((f) => f.followingId || f.followingUid)
       );
       const followers = new Set(
         records
-          .filter((f) => f && f.followingId === targetProfileUserId && f.followerId !== targetProfileUserId)
-          .map((f) => f.followerId)
+          .filter((f) => f && (f.followingId === targetProfileUserId || f.followingUid === targetProfileUserId) && f.followerId !== targetProfileUserId && f.followerUid !== targetProfileUserId)
+          .map((f) => f.followerId || f.followerUid)
       );
       setRealFollowingCount(followings.size);
       setRealFollowersCount(followers.size);
+
+      // If the list modal is currently open, refresh the modal users in real-time
+      if (listModalTypeRef.current === 'followers') {
+        getFollowersListForUser(targetProfileUserId, allUsers)
+          .then((res) => { if (isMounted) setModalUsers(res); })
+          .catch(console.warn);
+      } else if (listModalTypeRef.current === 'following') {
+        getFollowingListForUser(targetProfileUserId, allUsers)
+          .then((res) => { if (isMounted) setModalUsers(res); })
+          .catch(console.warn);
+      }
     });
 
     return () => {
       isMounted = false;
       unsubscribe();
     };
-  }, [targetProfileUserId]);
+  }, [targetProfileUserId, allUsers]);
 
   useEffect(() => {
     if (!listModalType || !targetProfileUserId) {
       setModalUsers([]);
       setIsLoadingModalUsers(false);
+      setModalError(null);
       return;
     }
 
     let isMounted = true;
     setIsLoadingModalUsers(true);
+    setModalError(null);
 
     const fetchFollowList = async () => {
       try {
@@ -329,11 +333,13 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
         }
         if (isMounted) {
           setModalUsers(results);
+          setModalError(null);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Error fetching followers/following list:', err);
         if (isMounted) {
           setModalUsers([]);
+          setModalError(err?.message || 'Failed to load list. Please try again.');
         }
       } finally {
         if (isMounted) {
@@ -396,17 +402,8 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   useEffect(() => {
     if (!targetProfileUserId || targetProfileUserId === 'user_fallback') return;
     const unsub = subscribeToUserPosts(targetProfileUserId, (livePosts) => {
-      setInternalUserPosts((prev) => {
-        const map = new Map<string, Post>();
-        prev.filter((p) => p.id && p.id.startsWith('post_')).forEach((p) => map.set(p.id, p));
-        livePosts.forEach((p) => {
-          if (p && p.id) map.set(p.id, p);
-        });
-        const list = Array.from(map.values());
-        list.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-        return list;
-      });
-      setRealPostsCount((prev) => Math.max(prev, livePosts.length));
+      setInternalUserPosts(livePosts);
+      setRealPostsCount(livePosts.length);
     });
     return () => unsub();
   }, [targetProfileUserId]);
@@ -420,6 +417,10 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
       ? safeUserPosts
       : safeSavedPosts
     : safeUserPosts;
+
+  const effectivePostsCount = safeUserPosts.length > 0
+    ? safeUserPosts.length
+    : realPostsCount;
 
   const handleShareProfile = async () => {
     const profileUrl = `https://funshann.blogspot.com/#user-${displayedUser.username}`;
@@ -807,7 +808,7 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
               }`}
             >
               <Grid className="w-4.5 h-4.5" />
-              <span>My Photos ({userPosts.length})</span>
+              <span>My Photos ({safeUserPosts.length})</span>
             </button>
 
             <button
@@ -1062,8 +1063,32 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
                     <div className="w-7 h-7 border-2 border-[#5B9DFF] border-t-transparent rounded-full animate-spin" />
                     <span className="text-xs text-slate-400 font-medium">Loading {listModalType}...</span>
                   </div>
+                ) : modalError ? (
+                  <div className="text-center py-8 px-4 space-y-3">
+                    <p className="text-sm font-semibold text-rose-500">{modalError}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsLoadingModalUsers(true);
+                        setModalError(null);
+                        const fetchFn = listModalType === 'followers' ? getFollowersListForUser : getFollowingListForUser;
+                        fetchFn(targetProfileUserId, allUsers)
+                          .then((res) => {
+                            setModalUsers(res);
+                            setModalError(null);
+                          })
+                          .catch((err: any) => {
+                            setModalError(err?.message || 'Failed to load list. Please try again.');
+                          })
+                          .finally(() => setIsLoadingModalUsers(false));
+                      }}
+                      className="px-4 py-2 rounded-full neu-raised text-xs font-bold text-[#5B9DFF] hover:text-blue-600 cursor-pointer"
+                    >
+                      Try Again
+                    </button>
+                  </div>
                 ) : modalUsers.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400 text-sm">
+                  <div className="text-center py-8 text-slate-400 text-sm font-medium">
                     No {listModalType} found
                   </div>
                 ) : (

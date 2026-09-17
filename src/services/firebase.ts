@@ -1414,33 +1414,8 @@ export const isPostByUserId = (post: Post, targetUserId: string): boolean => {
 export const getUserPostsCountFromFirestore = async (userId: string): Promise<number> => {
   try {
     if (!userId) return 0;
-    const postsRef = collection(db, 'posts');
-    const q1 = query(postsRef, where('userId', '==', userId));
-    const q2 = query(postsRef, where('authorId', '==', userId));
-    const q3 = query(postsRef, where('uid', '==', userId));
-    const q4 = query(postsRef, where('user.id', '==', userId));
-
-    const [s1, s2, s3, s4] = await Promise.all([
-      getDocs(q1).catch(() => null),
-      getDocs(q2).catch(() => null),
-      getDocs(q3).catch(() => null),
-      getDocs(q4).catch(() => null),
-    ]);
-
-    const postIds = new Set<string>();
-    const addIds = (snap: any) => {
-      if (!snap) return;
-      snap.forEach((docSnap: any) => {
-        if (docSnap.exists()) {
-          postIds.add(docSnap.id);
-        }
-      });
-    };
-    addIds(s1);
-    addIds(s2);
-    addIds(s3);
-    addIds(s4);
-    return postIds.size;
+    const posts = await getUserPostsFromFirestore(userId);
+    return posts.length;
   } catch (error) {
     console.warn('Failed to fetch user post count from Firestore:', error);
     return 0;
@@ -1463,9 +1438,12 @@ export const getUserPostsFromFirestore = async (userId: string, limitCount?: num
       const snap = await getDocs(q);
       snap.forEach((docSnap) => {
         if (docSnap.exists()) {
-          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
-          if (p && p.id) {
-            postsMap.set(p.id, p);
+          const data = docSnap.data();
+          if (!data.isAutoRemoved && !data.deleted) {
+            const p = normalizePost({ ...data, id: docSnap.id });
+            if (p && p.id && isPostByUserId(p, userId)) {
+              postsMap.set(p.id, p);
+            }
           }
         }
       });
@@ -1477,9 +1455,12 @@ export const getUserPostsFromFirestore = async (userId: string, limitCount?: num
       const snap = await getDocs(qFallback);
       snap.forEach((docSnap) => {
         if (docSnap.exists()) {
-          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
-          if (p && p.id) {
-            postsMap.set(p.id, p);
+          const data = docSnap.data();
+          if (!data.isAutoRemoved && !data.deleted) {
+            const p = normalizePost({ ...data, id: docSnap.id });
+            if (p && p.id && isPostByUserId(p, userId)) {
+              postsMap.set(p.id, p);
+            }
           }
         }
       });
@@ -1498,9 +1479,12 @@ export const getUserPostsFromFirestore = async (userId: string, limitCount?: num
       if (!snap) return;
       snap.forEach((docSnap) => {
         if (docSnap.exists()) {
-          const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
-          if (p && p.id) {
-            postsMap.set(p.id, p);
+          const data = docSnap.data();
+          if (!data.isAutoRemoved && !data.deleted) {
+            const p = normalizePost({ ...data, id: docSnap.id });
+            if (p && p.id && isPostByUserId(p, userId)) {
+              postsMap.set(p.id, p);
+            }
           }
         }
       });
@@ -1532,9 +1516,12 @@ export const subscribeToUserPosts = (userId: string, callback: (posts: Post[]) =
         const result: Post[] = [];
         snapshot.forEach((docSnap: any) => {
           if (docSnap.exists()) {
-            const p = normalizePost({ ...docSnap.data(), id: docSnap.id });
-            if (p && p.id) {
-              result.push(p);
+            const data = docSnap.data();
+            if (!data.isAutoRemoved && !data.deleted) {
+              const p = normalizePost({ ...data, id: docSnap.id });
+              if (p && p.id && isPostByUserId(p, userId)) {
+                result.push(p);
+              }
             }
           }
         });
@@ -1583,15 +1570,7 @@ export const getUsersByIdsFromFirestore = async (userIds: string[], knownUsers: 
       } catch (err) {
         console.warn('Error fetching user document for follow list:', uid, err);
       }
-      return {
-        id: uid,
-        name: 'Funshann Member',
-        username: `user_${uid.slice(0, 6)}`,
-        avatar: DEFAULT_AVATAR,
-        postsCount: 0,
-        followersCount: 0,
-        followingCount: 0,
-      } as User;
+      return null;
     });
 
     const fetched = await Promise.all(fetchPromises);
@@ -1607,46 +1586,12 @@ export const getFollowersListForUser = async (targetUserId: string, knownUsers: 
   if (!targetUserId) return [];
   try {
     await ensureFirebaseAuth();
-    const followsRef = collection(db, 'follows');
-    
-    // Query where followingUid == targetUserId or followingId == targetUserId
-    const q1 = query(followsRef, where('followingUid', '==', targetUserId));
-    const q2 = query(followsRef, where('followingId', '==', targetUserId));
-
-    const [snap1, snap2] = await Promise.all([
-      getDocs(q1).catch(() => null),
-      getDocs(q2).catch(() => null),
-    ]);
-
-    const followerIdsSet = new Set<string>();
-
-    const processSnap = (snap: any) => {
-      if (!snap) return;
-      snap.forEach((docSnap: any) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const fid = data.followerId || data.followerUid || (docSnap.id.includes('_') ? docSnap.id.split('_')[0] : null);
-          if (fid && fid !== targetUserId) {
-            followerIdsSet.add(fid);
-          }
-        }
-      });
-    };
-
-    processSnap(snap1);
-    processSnap(snap2);
-
-    // Also check knownUsers if any user's following list contains targetUserId
-    for (const u of knownUsers) {
-      if (u && u.id && u.id !== targetUserId && Array.isArray(u.following) && u.following.includes(targetUserId)) {
-        followerIdsSet.add(u.id);
-      }
-    }
-
-    return await getUsersByIdsFromFirestore(Array.from(followerIdsSet), knownUsers);
+    const followerIds = await getUserFollowersFromFirestore(targetUserId);
+    if (followerIds.length === 0) return [];
+    return await getUsersByIdsFromFirestore(followerIds, knownUsers);
   } catch (error) {
     console.warn('Failed to get followers list for user:', targetUserId, error);
-    return [];
+    throw error;
   }
 };
 
@@ -1654,49 +1599,12 @@ export const getFollowingListForUser = async (targetUserId: string, knownUsers: 
   if (!targetUserId) return [];
   try {
     await ensureFirebaseAuth();
-    const followsRef = collection(db, 'follows');
-    
-    // Query where followerUid == targetUserId or followerId == targetUserId
-    const q1 = query(followsRef, where('followerUid', '==', targetUserId));
-    const q2 = query(followsRef, where('followerId', '==', targetUserId));
-
-    const [snap1, snap2] = await Promise.all([
-      getDocs(q1).catch(() => null),
-      getDocs(q2).catch(() => null),
-    ]);
-
-    const followingIdsSet = new Set<string>();
-
-    const processSnap = (snap: any) => {
-      if (!snap) return;
-      snap.forEach((docSnap: any) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          const fid = data.followingId || data.followingUid || (docSnap.id.includes('_') ? docSnap.id.split('_')[1] : null);
-          if (fid && fid !== targetUserId) {
-            followingIdsSet.add(fid);
-          }
-        }
-      });
-    };
-
-    processSnap(snap1);
-    processSnap(snap2);
-
-    // Also check if target user object in knownUsers has following array
-    const targetInKnown = knownUsers.find((u) => u && u.id === targetUserId);
-    if (targetInKnown && Array.isArray(targetInKnown.following)) {
-      for (const fId of targetInKnown.following) {
-        if (fId && fId !== targetUserId) {
-          followingIdsSet.add(fId);
-        }
-      }
-    }
-
-    return await getUsersByIdsFromFirestore(Array.from(followingIdsSet), knownUsers);
+    const followingIds = await getUserFollowingsFromFirestore(targetUserId);
+    if (followingIds.length === 0) return [];
+    return await getUsersByIdsFromFirestore(followingIds, knownUsers);
   } catch (error) {
     console.warn('Failed to get following list for user:', targetUserId, error);
-    return [];
+    throw error;
   }
 };
 
@@ -1713,15 +1621,39 @@ export const getUserProfileFromFirestore = async (userId: string): Promise<User 
     }
     if (snap && snap.exists()) {
       const u = normalizeUser(snap.data());
-      const [followings, postsCount] = await Promise.all([
+      const [followings, followers, postsCount] = await Promise.all([
         getUserFollowingsFromFirestore(userId).catch(() => []),
+        getUserFollowersFromFirestore(userId).catch(() => []),
         getUserPostsCountFromFirestore(userId).catch(() => u.postsCount),
       ]);
+
+      const realPostsCount = typeof postsCount === 'number' ? postsCount : (u.postsCount ?? 0);
+      const realFollowingCount = followings.length;
+      const realFollowersCount = followers.length;
+
+      // Fix stale counters in Firestore user doc if current authenticated user owns it
+      const currentAuthUid = auth.currentUser?.uid;
+      if (currentAuthUid === userId) {
+        if (
+          u.postsCount !== realPostsCount ||
+          u.followingCount !== realFollowingCount ||
+          u.followersCount !== realFollowersCount
+        ) {
+          updateDoc(userRef, {
+            postsCount: realPostsCount,
+            followingCount: realFollowingCount,
+            followersCount: realFollowersCount,
+            updatedAt: serverTimestamp(),
+          }).catch(console.warn);
+        }
+      }
+
       return {
         ...u,
-        postsCount: Math.max(u.postsCount, postsCount),
+        postsCount: realPostsCount,
+        followersCount: realFollowersCount,
         following: followings,
-        followingCount: followings.length > 0 ? followings.length : u.followingCount,
+        followingCount: realFollowingCount,
       };
     }
     return null;
