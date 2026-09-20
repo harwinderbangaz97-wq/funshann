@@ -53,7 +53,11 @@ import {
   getUserFollowersFromFirestore,
   getUserFollowingsFromFirestore,
   getUserPostsCountFromFirestore,
+  getUserPostsFromFirestore,
+  getUserProfileFromFirestore,
+  isPostByUserId,
   subscribeToFollows,
+  subscribeToUser,
   subscribeToUserPosts,
 } from '../services/firebase';
 
@@ -175,45 +179,103 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   const selectedPreviewPost = navState.previewPost;
 
   const activeUser = currentUser;
-  const rawDisplayedUser = profileUser || activeUser;
+  const isTargetingOtherUser = Boolean(profileUser && (!activeUser?.id || profileUser.id !== activeUser.id));
+
+  // Live target user profile state when viewing another user's profile
+  const [liveTargetProfileUser, setLiveTargetProfileUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (!isTargetingOtherUser || !profileUser?.id) {
+      setLiveTargetProfileUser(null);
+      return;
+    }
+    let isMounted = true;
+    const targetUid = profileUser.id;
+
+    getUserProfileFromFirestore(targetUid)
+      .then((remoteUser) => {
+        if (isMounted && remoteUser) {
+          setLiveTargetProfileUser(remoteUser);
+        }
+      })
+      .catch(console.warn);
+
+    const unsub = subscribeToUser(targetUid, (remoteUser) => {
+      if (isMounted && remoteUser) {
+        setLiveTargetProfileUser(remoteUser);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [isTargetingOtherUser, profileUser?.id]);
+
+  const targetUserRecord = isTargetingOtherUser
+    ? (liveTargetProfileUser || profileUser)
+    : (profileUser || activeUser);
+
   const currentAuthUser = auth.currentUser;
-  const isTargetAuthUser = Boolean(
+  const isTargetAuthUser = !isTargetingOtherUser && Boolean(
     currentAuthUser &&
-    ((rawDisplayedUser?.id && rawDisplayedUser.id === currentAuthUser.uid) ||
+    ((targetUserRecord?.id && targetUserRecord.id === currentAuthUser.uid) ||
      (activeUser?.id && activeUser.id === currentAuthUser.uid))
   );
   const authFallbackName = (isTargetAuthUser && currentAuthUser?.displayName) || (isTargetAuthUser && currentAuthUser?.email ? currentAuthUser.email.split('@')[0] : '');
   const authFallbackAvatar = (isTargetAuthUser && currentAuthUser?.photoURL) || '';
 
-  const displayedUser: User = {
-    id: rawDisplayedUser?.id || activeUser?.id || (isTargetAuthUser && currentAuthUser ? currentAuthUser.uid : 'user_fallback'),
-    name: (rawDisplayedUser?.name && rawDisplayedUser.name !== 'Funshann Member' && rawDisplayedUser.name.trim())
-      || (activeUser?.name && activeUser.name !== 'Funshann Member' && activeUser.name.trim())
-      || authFallbackName
-      || (rawDisplayedUser?.email ? rawDisplayedUser.email.split('@')[0] : '')
-      || 'User',
-    username: rawDisplayedUser?.username || activeUser?.username || 'user',
-    avatar: (rawDisplayedUser?.avatar && rawDisplayedUser.avatar !== DEFAULT_AVATAR && rawDisplayedUser.avatar.trim())
-      || (activeUser?.avatar && activeUser.avatar !== DEFAULT_AVATAR && activeUser.avatar.trim())
-      || authFallbackAvatar
-      || DEFAULT_AVATAR,
-    bio: rawDisplayedUser?.bio || activeUser?.bio || '',
-    website: rawDisplayedUser?.website || activeUser?.website || '',
-    location: rawDisplayedUser?.location || activeUser?.location || '',
-    interests: Array.isArray(rawDisplayedUser?.interests) ? rawDisplayedUser.interests : (activeUser?.interests || []),
-    socialLinks: Array.isArray(rawDisplayedUser?.socialLinks) ? rawDisplayedUser.socialLinks : (activeUser?.socialLinks || []),
-    postsCount: rawDisplayedUser?.postsCount ?? activeUser?.postsCount ?? 0,
-    followersCount: rawDisplayedUser?.followersCount ?? activeUser?.followersCount ?? 0,
-    followingCount: rawDisplayedUser?.followingCount ?? activeUser?.followingCount ?? 0,
-    isVerified: Boolean(rawDisplayedUser?.isVerified || activeUser?.isVerified),
-    isFollowing: Boolean(rawDisplayedUser?.isFollowing),
-  };
+  const displayedUser: User = isTargetingOtherUser
+    ? {
+        id: targetUserRecord?.id || 'target_user_fallback',
+        name: (targetUserRecord?.name && targetUserRecord.name !== 'Funshann Member' && targetUserRecord.name.trim())
+          || (targetUserRecord?.displayName && targetUserRecord.displayName !== 'Funshann Member' && targetUserRecord.displayName.trim())
+          || (targetUserRecord?.email ? targetUserRecord.email.split('@')[0] : '')
+          || targetUserRecord?.username
+          || 'User',
+        username: targetUserRecord?.username || 'user',
+        avatar: (targetUserRecord?.avatar && targetUserRecord.avatar !== DEFAULT_AVATAR && targetUserRecord.avatar.trim())
+          || ((targetUserRecord as any)?.photoURL && (targetUserRecord as any).photoURL !== DEFAULT_AVATAR && (targetUserRecord as any).photoURL.trim())
+          || DEFAULT_AVATAR,
+        bio: targetUserRecord?.bio || '',
+        website: targetUserRecord?.website || '',
+        location: targetUserRecord?.location || '',
+        interests: Array.isArray(targetUserRecord?.interests) ? targetUserRecord.interests : [],
+        socialLinks: Array.isArray(targetUserRecord?.socialLinks) ? targetUserRecord.socialLinks : [],
+        postsCount: targetUserRecord?.postsCount ?? 0,
+        followersCount: targetUserRecord?.followersCount ?? 0,
+        followingCount: targetUserRecord?.followingCount ?? 0,
+        isVerified: Boolean(targetUserRecord?.isVerified),
+        isFollowing: Boolean(targetUserRecord?.isFollowing),
+      }
+    : {
+        id: activeUser?.id || (isTargetAuthUser && currentAuthUser ? currentAuthUser.uid : 'user_fallback'),
+        name: (targetUserRecord?.name && targetUserRecord.name !== 'Funshann Member' && targetUserRecord.name.trim())
+          || (activeUser?.name && activeUser.name !== 'Funshann Member' && activeUser.name.trim())
+          || authFallbackName
+          || (targetUserRecord?.email ? targetUserRecord.email.split('@')[0] : '')
+          || 'User',
+        username: targetUserRecord?.username || activeUser?.username || 'user',
+        avatar: (targetUserRecord?.avatar && targetUserRecord.avatar !== DEFAULT_AVATAR && targetUserRecord.avatar.trim())
+          || (activeUser?.avatar && activeUser.avatar !== DEFAULT_AVATAR && activeUser.avatar.trim())
+          || authFallbackAvatar
+          || DEFAULT_AVATAR,
+        bio: targetUserRecord?.bio || activeUser?.bio || '',
+        website: targetUserRecord?.website || activeUser?.website || '',
+        location: targetUserRecord?.location || activeUser?.location || '',
+        interests: Array.isArray(targetUserRecord?.interests) ? targetUserRecord.interests : (activeUser?.interests || []),
+        socialLinks: Array.isArray(targetUserRecord?.socialLinks) ? targetUserRecord.socialLinks : (activeUser?.socialLinks || []),
+        postsCount: targetUserRecord?.postsCount ?? activeUser?.postsCount ?? 0,
+        followersCount: targetUserRecord?.followersCount ?? activeUser?.followersCount ?? 0,
+        followingCount: targetUserRecord?.followingCount ?? activeUser?.followingCount ?? 0,
+        isVerified: Boolean(targetUserRecord?.isVerified || activeUser?.isVerified),
+        isFollowing: Boolean(targetUserRecord?.isFollowing),
+      };
 
-  // User is viewing their own profile if profileUser is not explicitly passed (e.g. clicked Profile in bottom nav),
-  // OR if the target profile id matches the current active user id
-  const isOwnProfile = !profileUser || Boolean(
+  // User is viewing their own profile only if not targeting another user and target id matches active user id
+  const isOwnProfile = !isTargetingOtherUser && (!profileUser || Boolean(
     activeUser?.id && (displayedUser.id === activeUser.id || displayedUser.id === 'user_fallback' || !displayedUser.id)
-  );
+  ));
 
   const isFollowing = !isOwnProfile && currentUser
     ? (Array.isArray(currentUser.following) && currentUser.following.includes(displayedUser.id) || Boolean(displayedUser.isFollowing))
@@ -222,9 +284,9 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
   const userAvatar = displayedUser.avatar || DEFAULT_AVATAR;
 
   // Fetch Followers / Following from Firestore for the target profile user
-  const targetProfileUserId = displayedUser.id && displayedUser.id !== 'user_fallback'
-    ? displayedUser.id
-    : (currentUser?.id || '');
+  const targetProfileUserId = isTargetingOtherUser
+    ? (profileUser?.id || displayedUser.id)
+    : (displayedUser.id && displayedUser.id !== 'user_fallback' ? displayedUser.id : (currentUser?.id || ''));
 
   const [realPostsCount, setRealPostsCount] = useState<number>(() => {
     return Array.isArray(userPosts) ? userPosts.length : (displayedUser.postsCount ?? 0);
@@ -380,37 +442,75 @@ const ProfileViewComponent: React.FC<ProfileViewProps> = ({
     };
   }, [listModalType]);
 
-  const [internalUserPosts, setInternalUserPosts] = useState<Post[]>(() =>
-    Array.isArray(userPosts) ? userPosts.filter((p): p is Post => Boolean(p && p.id)) : []
-  );
+  const [internalUserPosts, setInternalUserPosts] = useState<Post[]>(() => {
+    if (!Array.isArray(userPosts)) return [];
+    return isTargetingOtherUser
+      ? userPosts.filter((p): p is Post => Boolean(p && p.id && isPostByUserId(p, targetProfileUserId)))
+      : userPosts.filter((p): p is Post => Boolean(p && p.id));
+  });
 
   useEffect(() => {
     if (Array.isArray(userPosts)) {
       setInternalUserPosts((prev) => {
         const map = new Map<string, Post>();
-        prev.forEach((p) => map.set(p.id, p));
+        // Only keep posts belonging strictly to target user if viewing another user's profile
+        prev.forEach((p) => {
+          if (!isTargetingOtherUser || isPostByUserId(p, targetProfileUserId)) {
+            map.set(p.id, p);
+          }
+        });
         userPosts.forEach((p) => {
-          if (p && p.id) map.set(p.id, p);
+          if (p && p.id) {
+            if (!isTargetingOtherUser || isPostByUserId(p, targetProfileUserId)) {
+              map.set(p.id, p);
+            }
+          }
         });
         const list = Array.from(map.values());
         list.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
         return list;
       });
     }
-  }, [userPosts]);
+  }, [userPosts, isTargetingOtherUser, targetProfileUserId]);
 
   useEffect(() => {
-    if (!targetProfileUserId || targetProfileUserId === 'user_fallback') return;
+    if (!targetProfileUserId || targetProfileUserId === 'user_fallback' || targetProfileUserId === 'target_user_fallback') return;
+    let isMounted = true;
+
+    // Fetch posts directly from Firestore to ensure immediate display for User B
+    getUserPostsFromFirestore(targetProfileUserId)
+      .then((fetchedPosts) => {
+        if (isMounted && Array.isArray(fetchedPosts)) {
+          setInternalUserPosts(fetchedPosts);
+          setRealPostsCount(fetchedPosts.length);
+        }
+      })
+      .catch(console.warn);
+
     const unsub = subscribeToUserPosts(targetProfileUserId, (livePosts) => {
-      setInternalUserPosts(livePosts);
-      setRealPostsCount(livePosts.length);
+      if (isMounted) {
+        setInternalUserPosts(livePosts);
+        setRealPostsCount(livePosts.length);
+      }
     });
-    return () => unsub();
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, [targetProfileUserId]);
 
+  const strictlyFilteredPropPosts = Array.isArray(userPosts)
+    ? (isTargetingOtherUser
+        ? userPosts.filter((p): p is Post => Boolean(p && p.id && isPostByUserId(p, targetProfileUserId)))
+        : userPosts.filter((p): p is Post => Boolean(p && p.id)))
+    : [];
+
   const safeUserPosts = internalUserPosts.length > 0
-    ? internalUserPosts
-    : (Array.isArray(userPosts) ? userPosts.filter((p): p is Post => Boolean(p && p.id)) : []);
+    ? (isTargetingOtherUser
+        ? internalUserPosts.filter((p) => isPostByUserId(p, targetProfileUserId))
+        : internalUserPosts)
+    : strictlyFilteredPropPosts;
   const safeSavedPosts = Array.isArray(savedPosts) ? savedPosts.filter((p): p is Post => Boolean(p && p.id)) : [];
   const displayPosts = isOwnProfile
     ? activeSubTab === 'posts'
