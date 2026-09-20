@@ -85,6 +85,232 @@ const isNativeEnvironment = (): boolean => {
   );
 };
 
+// Parse browser hash to NavigationState for deep-link restoration
+const parseHashToNavState = (
+  rawHash: string,
+  baseState: NavigationState
+): NavigationState => {
+  const hash = rawHash.replace(/^#\/?/, '').trim();
+
+  if (!hash || hash === 'home') {
+    return {
+      ...baseState,
+      tab: 'home',
+      tabHistory: ['home'],
+      previewPost: null,
+      isNotificationOpen: false,
+      profileHistory: [],
+    };
+  }
+
+  if (hash === 'discover' || hash === 'search') {
+    return {
+      ...baseState,
+      tab: 'search',
+      tabHistory: baseState.tabHistory.includes('search') ? baseState.tabHistory : [...baseState.tabHistory, 'search'],
+      previewPost: null,
+      isNotificationOpen: false,
+      profileHistory: [],
+    };
+  }
+
+  if (hash === 'chat' || hash === 'community' || hash.startsWith('group-')) {
+    return {
+      ...baseState,
+      tab: 'chat',
+      tabHistory: baseState.tabHistory.includes('chat') ? baseState.tabHistory : [...baseState.tabHistory, 'chat'],
+      previewPost: null,
+      isNotificationOpen: false,
+      profileHistory: [],
+    };
+  }
+
+  if (hash === 'notifications') {
+    return {
+      ...baseState,
+      isNotificationOpen: true,
+      previewPost: null,
+      profileHistory: [],
+    };
+  }
+
+  if (hash === 'upload') {
+    return {
+      ...baseState,
+      tab: 'upload',
+      tabHistory: baseState.tabHistory.includes('upload') ? baseState.tabHistory : [...baseState.tabHistory, 'upload'],
+      previewPost: null,
+      isNotificationOpen: false,
+      profileHistory: [],
+    };
+  }
+
+  if (hash === 'profile') {
+    return {
+      ...baseState,
+      tab: 'profile',
+      tabHistory: baseState.tabHistory.includes('profile') ? baseState.tabHistory : [...baseState.tabHistory, 'profile'],
+      previewPost: null,
+      isNotificationOpen: false,
+      profileHistory: [],
+    };
+  }
+
+  if (hash.startsWith('post-')) {
+    const postId = hash.slice(5).trim();
+    if (postId) {
+      return {
+        ...baseState,
+        previewPost: {
+          id: postId,
+          userId: '',
+          user: {
+            id: '',
+            name: '',
+            username: '',
+            avatar: '',
+            postsCount: 0,
+            followersCount: 0,
+            followingCount: 0,
+          },
+          imageUrl: '',
+          caption: '',
+          timestamp: '',
+          likesCount: 0,
+          commentsCount: 0,
+          comments: [],
+        },
+        isNotificationOpen: false,
+      };
+    }
+  }
+
+  if (hash.startsWith('user-')) {
+    const userIdentifier = hash.slice(5).trim();
+    if (userIdentifier) {
+      const userStub: User = {
+        id: userIdentifier,
+        name: userIdentifier,
+        username: userIdentifier,
+        avatar: '',
+        postsCount: 0,
+        followersCount: 0,
+        followingCount: 0,
+      };
+      return {
+        ...baseState,
+        tab: 'profile',
+        tabHistory: baseState.tabHistory.includes('profile') ? baseState.tabHistory : [...baseState.tabHistory, 'profile'],
+        profileHistory: [userStub],
+        previewPost: null,
+        isNotificationOpen: false,
+      };
+    }
+  }
+
+  return baseState;
+};
+
+const getInitialNavState = (): NavigationState => {
+  const base: NavigationState = {
+    tab: 'home',
+    tabHistory: ['home'],
+    activeChatUserId: null,
+    profileHistory: [],
+    selectedStoryIndex: null,
+    activeCommentPost: null,
+    activeSharePost: null,
+    isNotificationOpen: false,
+    isSettingsOpen: false,
+    settingsSection: 'main',
+    previewPost: null,
+    chatAttachmentOpen: false,
+    chatWallpaperOpen: false,
+    chatLightboxUrl: null,
+    chatMenuOpen: false,
+    isEditProfileOpen: false,
+  };
+
+  if (typeof window === 'undefined') {
+    return base;
+  }
+
+  const hash = window.location.hash;
+  if (!hash || hash === '#' || hash === '#/' || hash === '#/home' || hash === '#home') {
+    return base;
+  }
+
+  return parseHashToNavState(hash, base);
+};
+
+// Compute URL path and hash for NavigationState
+const computeUrlForState = (
+  state: NavigationState,
+  effectiveCurrentUser?: User
+): { url: string; hash: string } => {
+  if (typeof window === 'undefined') {
+    return { url: '/', hash: '' };
+  }
+
+  const pathname = window.location.pathname || '/';
+  const search = window.location.search || '';
+  const base = `${pathname}${search}`;
+
+  // 1. Post Preview
+  if (state.previewPost && state.previewPost.id) {
+    const hash = `#post-${state.previewPost.id}`;
+    return { url: `${base}${hash}`, hash };
+  }
+
+  // 2. Profile View (visiting user in profile stack)
+  if (state.profileHistory.length > 0) {
+    const topUser = state.profileHistory[state.profileHistory.length - 1];
+    const identifier = topUser.username || topUser.id;
+    if (identifier) {
+      const hash = `#user-${identifier}`;
+      return { url: `${base}${hash}`, hash };
+    }
+  }
+
+  // 3. Notifications Drawer
+  if (state.isNotificationOpen) {
+    const hash = '#notifications';
+    return { url: `${base}${hash}`, hash };
+  }
+
+  // 4. Tab based
+  switch (state.tab) {
+    case 'home': {
+      // Home / root: if at root screen (single history entry, no overlays), return base (e.g. "/")
+      if (state.tabHistory.length <= 1) {
+        return { url: base, hash: '' };
+      }
+      return { url: `${base}#home`, hash: '#home' };
+    }
+    case 'search': {
+      return { url: `${base}#discover`, hash: '#discover' };
+    }
+    case 'chat': {
+      return { url: `${base}#chat`, hash: '#chat' };
+    }
+    case 'upload': {
+      return { url: `${base}#upload`, hash: '#upload' };
+    }
+    case 'profile': {
+      const u = effectiveCurrentUser;
+      if (u && (u.username || u.id)) {
+        const identifier = u.username || u.id;
+        const hash = `#user-${identifier}`;
+        return { url: `${base}${hash}`, hash };
+      }
+      return { url: `${base}#profile`, hash: '#profile' };
+    }
+    default: {
+      return { url: `${base}#${state.tab}`, hash: `#${state.tab}` };
+    }
+  }
+};
+
 const NavigationContext = createContext<NavigationContextType | null>(null);
 
 interface NavigationProviderProps {
@@ -98,7 +324,7 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   currentUser,
   onShowToast,
 }) => {
-  const [navState, setNavState] = useState<NavigationState>(initialNavState);
+  const [navState, setNavState] = useState<NavigationState>(getInitialNavState);
   const stateRef = useRef<NavigationState>(navState);
   stateRef.current = navState;
 
@@ -106,15 +332,77 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   const historyDepthRef = useRef<number>(0);
   const isHandlingPopStateRef = useRef<boolean>(false);
 
-  // Push entry into browser history stack whenever a new screen/modal is pushed forward
-  const pushBrowserHistory = useCallback(() => {
+  const getEffectiveCurrentUser = useCallback((): User | undefined => {
+    if (currentUser && (currentUser.id || currentUser.username)) return currentUser;
     try {
-      historyDepthRef.current += 1;
-      window.history.pushState(
-        { depth: historyDepthRef.current, timestamp: Date.now() },
-        '',
-        window.location.href
-      );
+      const saved = localStorage.getItem('funshann_current_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && (parsed.id || parsed.uid || parsed.username)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  }, [currentUser]);
+
+  const getUrlForState = useCallback(
+    (state: NavigationState): { url: string; hash: string } => {
+      return computeUrlForState(state, getEffectiveCurrentUser());
+    },
+    [getEffectiveCurrentUser]
+  );
+
+  // Push entry into browser history stack whenever a new screen/modal is pushed forward
+  const pushBrowserHistory = useCallback(
+    (targetUrl?: string) => {
+      try {
+        if (isNativeEnvironment()) {
+          historyDepthRef.current += 1;
+          window.history.pushState(
+            { depth: historyDepthRef.current, timestamp: Date.now() },
+            '',
+            window.location.href
+          );
+          return;
+        }
+
+        const currentFullUrl =
+          window.location.pathname + window.location.search + window.location.hash;
+        const finalUrl = targetUrl || currentFullUrl;
+
+        // Prevent duplicate history entries for the exact same URL
+        if (finalUrl === currentFullUrl && historyDepthRef.current > 0) {
+          return;
+        }
+
+        historyDepthRef.current += 1;
+        window.history.pushState(
+          { depth: historyDepthRef.current, url: finalUrl, timestamp: Date.now() },
+          '',
+          finalUrl
+        );
+      } catch {
+        // ignore
+      }
+    },
+    []
+  );
+
+  const replaceBrowserUrl = useCallback((targetUrl: string) => {
+    try {
+      if (isNativeEnvironment()) return;
+      const currentFullUrl =
+        window.location.pathname + window.location.search + window.location.hash;
+      if (currentFullUrl !== targetUrl) {
+        window.history.replaceState(
+          { depth: historyDepthRef.current, url: targetUrl, root: historyDepthRef.current === 0 },
+          '',
+          targetUrl
+        );
+      }
     } catch {
       // ignore
     }
@@ -307,6 +595,12 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
         if (historyDepthRef.current > 0) {
           historyDepthRef.current = Math.max(0, historyDepthRef.current - 1);
           window.history.back();
+        } else if (!isNativeEnvironment()) {
+          // If at depth 0 on web (e.g. directly deep-linked), update URL with replaceState
+          setTimeout(() => {
+            const { url } = getUrlForState(stateRef.current);
+            replaceBrowserUrl(url);
+          }, 0);
         }
       } catch {
         // ignore
@@ -318,13 +612,18 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     } else {
       resolveBackStep();
     }
-  }, [resolveBackStep]);
+  }, [resolveBackStep, getUrlForState, replaceBrowserUrl]);
 
   // Listen for browser popstate (triggered by Android hardware back button & swipe back gesture)
   useEffect(() => {
     // Prime initial history state
     try {
-      window.history.replaceState({ depth: 0, root: true }, '', window.location.href);
+      const initialUrl = window.location.href;
+      window.history.replaceState(
+        { depth: 0, root: true, url: initialUrl },
+        '',
+        initialUrl
+      );
       if (isNativeEnvironment()) {
         pushBrowserHistory();
       }
@@ -338,11 +637,60 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
         return;
       }
 
-      if (historyDepthRef.current > 0) {
-        historyDepthRef.current = Math.max(0, historyDepthRef.current - 1);
+      if (isNativeEnvironment()) {
+        if (historyDepthRef.current > 0) {
+          historyDepthRef.current = Math.max(0, historyDepthRef.current - 1);
+        }
+        resolveBackStep();
+        return;
       }
 
-      resolveBackStep();
+      // Web environment:
+      const newDepth = typeof event.state?.depth === 'number' ? event.state.depth : undefined;
+      const prevDepth = historyDepthRef.current;
+
+      if (typeof newDepth === 'number') {
+        historyDepthRef.current = Math.max(0, newDepth);
+        if (newDepth < prevDepth) {
+          // User clicked browser Back button
+          resolveBackStep();
+        } else if (newDepth > prevDepth) {
+          // User clicked browser Forward button
+          const currentHash = window.location.hash;
+          const nextState = parseHashToNavState(currentHash, stateRef.current);
+          setNavState(nextState);
+        } else {
+          const currentHash = window.location.hash;
+          const expectedHash = getUrlForState(stateRef.current).hash;
+          if (currentHash !== expectedHash) {
+            const nextState = parseHashToNavState(currentHash, stateRef.current);
+            setNavState(nextState);
+          }
+        }
+      } else {
+        if (checkCanGoBack(stateRef.current)) {
+          if (historyDepthRef.current > 0) {
+            historyDepthRef.current = Math.max(0, historyDepthRef.current - 1);
+          }
+          resolveBackStep();
+        } else {
+          const currentHash = window.location.hash;
+          const nextState = parseHashToNavState(currentHash, stateRef.current);
+          setNavState(nextState);
+        }
+      }
+    };
+
+    const handleHashChange = () => {
+      if (isHandlingPopStateRef.current) return;
+      if (isNativeEnvironment()) return;
+
+      const currentHash = window.location.hash;
+      const expectedHash = getUrlForState(stateRef.current).hash;
+      if (currentHash === expectedHash) return;
+
+      const nextState = parseHashToNavState(currentHash, stateRef.current);
+      setNavState(nextState);
     };
 
     // Listen for Cordova / Capacitor / WebView hardware back button
@@ -369,24 +717,32 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     };
 
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handleHashChange);
     document.addEventListener('backbutton', handleCordovaBackButton, false);
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
       document.removeEventListener('backbutton', handleCordovaBackButton);
     };
-  }, [resolveBackStep, goBack, pushBrowserHistory]);
+  }, [resolveBackStep, goBack, pushBrowserHistory, getUrlForState, onShowToast]);
 
   // Actions
   const navigateToTab = useCallback(
     (tab: TabType) => {
       window.scrollTo({ top: 0, behavior: 'instant' });
       setNavState((prev) => {
-        if (prev.tab === tab && prev.profileHistory.length === 0 && prev.activeChatUserId === null) {
+        if (
+          prev.tab === tab &&
+          prev.profileHistory.length === 0 &&
+          prev.activeChatUserId === null &&
+          prev.previewPost === null &&
+          !prev.isNotificationOpen
+        ) {
           return prev;
         }
         const updatedHistory = prev.tab === tab ? prev.tabHistory : [...prev.tabHistory, tab];
-        return {
+        const nextState: NavigationState = {
           ...prev,
           tab,
           tabHistory: updatedHistory,
@@ -399,11 +755,14 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
           chatLightboxUrl: null,
           previewPost: null,
           isEditProfileOpen: false,
+          isNotificationOpen: false,
         };
+        const { url } = getUrlForState(nextState);
+        pushBrowserHistory(url);
+        return nextState;
       });
-      pushBrowserHistory();
     },
-    [pushBrowserHistory]
+    [getUrlForState, pushBrowserHistory]
   );
 
   const openUserProfile = useCallback(
@@ -411,37 +770,42 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
       if (!user) return;
       window.scrollTo({ top: 0, behavior: 'instant' });
       setNavState((prev) => {
-        const currentUserId = currentUser?.id || '';
-        const isSelf = user.id === currentUserId;
-        const updatedHistory: TabType[] = prev.tab !== 'profile' ? [...prev.tabHistory, 'profile' as TabType] : prev.tabHistory;
+        const effectiveUser = getEffectiveCurrentUser();
+        const currentUserId = effectiveUser?.id || '';
+        const isSelf =
+          user.id === currentUserId ||
+          (effectiveUser?.username && user.username === effectiveUser.username);
+        const updatedHistory: TabType[] =
+          prev.tab !== 'profile' ? [...prev.tabHistory, 'profile' as TabType] : prev.tabHistory;
 
-        if (isSelf) {
-          return {
-            ...prev,
-            tab: 'profile',
-            tabHistory: updatedHistory,
-            profileHistory: [],
-            activeCommentPost: null,
-            selectedStoryIndex: null,
-            isNotificationOpen: false,
-            previewPost: null,
-          };
-        }
+        const nextState: NavigationState = isSelf
+          ? {
+              ...prev,
+              tab: 'profile',
+              tabHistory: updatedHistory,
+              profileHistory: [],
+              activeCommentPost: null,
+              selectedStoryIndex: null,
+              isNotificationOpen: false,
+              previewPost: null,
+            }
+          : {
+              ...prev,
+              tab: 'profile',
+              tabHistory: updatedHistory,
+              profileHistory: [...prev.profileHistory, user],
+              activeCommentPost: null,
+              selectedStoryIndex: null,
+              isNotificationOpen: false,
+              previewPost: null,
+            };
 
-        return {
-          ...prev,
-          tab: 'profile',
-          tabHistory: updatedHistory,
-          profileHistory: [...prev.profileHistory, user],
-          activeCommentPost: null,
-          selectedStoryIndex: null,
-          isNotificationOpen: false,
-          previewPost: null,
-        };
+        const { url } = getUrlForState(nextState);
+        pushBrowserHistory(url);
+        return nextState;
       });
-      pushBrowserHistory();
     },
-    [currentUser?.id, pushBrowserHistory]
+    [getEffectiveCurrentUser, getUrlForState, pushBrowserHistory]
   );
 
   const popUserProfile = useCallback(() => {
@@ -453,18 +817,22 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   const openChatThread = useCallback(
     (userId: string) => {
       window.scrollTo({ top: 0, behavior: 'instant' });
-      setNavState((prev) => ({
-        ...prev,
-        tab: 'chat',
-        tabHistory: prev.tab !== 'chat' ? [...prev.tabHistory, 'chat'] : prev.tabHistory,
-        activeChatUserId: userId,
-        chatAttachmentOpen: false,
-        chatWallpaperOpen: false,
-        chatMenuOpen: false,
-      }));
-      pushBrowserHistory();
+      setNavState((prev) => {
+        const nextState: NavigationState = {
+          ...prev,
+          tab: 'chat',
+          tabHistory: prev.tab !== 'chat' ? [...prev.tabHistory, 'chat'] : prev.tabHistory,
+          activeChatUserId: userId,
+          chatAttachmentOpen: false,
+          chatWallpaperOpen: false,
+          chatMenuOpen: false,
+        };
+        const { url } = getUrlForState(nextState);
+        pushBrowserHistory(url);
+        return nextState;
+      });
     },
-    [pushBrowserHistory]
+    [getUrlForState, pushBrowserHistory]
   );
 
   const closeChatThread = useCallback(() => {
@@ -514,9 +882,13 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   }, [goBack]);
 
   const openNotifications = useCallback(() => {
-    setNavState((prev) => ({ ...prev, isNotificationOpen: true }));
-    pushBrowserHistory();
-  }, [pushBrowserHistory]);
+    setNavState((prev) => {
+      const nextState: NavigationState = { ...prev, isNotificationOpen: true };
+      const { url } = getUrlForState(nextState);
+      pushBrowserHistory(url);
+      return nextState;
+    });
+  }, [getUrlForState, pushBrowserHistory]);
 
   const closeNotifications = useCallback(() => {
     goBack();
@@ -551,10 +923,14 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
 
   const openPostPreview = useCallback(
     (post: Post) => {
-      setNavState((prev) => ({ ...prev, previewPost: post }));
-      pushBrowserHistory();
+      setNavState((prev) => {
+        const nextState: NavigationState = { ...prev, previewPost: post };
+        const { url } = getUrlForState(nextState);
+        pushBrowserHistory(url);
+        return nextState;
+      });
     },
-    [pushBrowserHistory]
+    [getUrlForState, pushBrowserHistory]
   );
 
   const closePostPreview = useCallback(() => {
@@ -604,8 +980,35 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   const resetNavigation = useCallback(() => {
     document.body.style.overflow = '';
     document.documentElement.style.overflow = '';
-    setNavState(initialNavState);
-  }, []);
+    const nextState: NavigationState = {
+      tab: 'home',
+      tabHistory: ['home'],
+      activeChatUserId: null,
+      profileHistory: [],
+      selectedStoryIndex: null,
+      activeCommentPost: null,
+      activeSharePost: null,
+      isNotificationOpen: false,
+      isSettingsOpen: false,
+      settingsSection: 'main',
+      previewPost: null,
+      chatAttachmentOpen: false,
+      chatWallpaperOpen: false,
+      chatLightboxUrl: null,
+      chatMenuOpen: false,
+      isEditProfileOpen: false,
+    };
+    setNavState(nextState);
+    if (!isNativeEnvironment()) {
+      try {
+        const pathname = window.location.pathname || '/';
+        const search = window.location.search || '';
+        replaceBrowserUrl(`${pathname}${search}`);
+      } catch {
+        // ignore
+      }
+    }
+  }, [replaceBrowserUrl]);
 
   const canGoBack = checkCanGoBack(navState);
   const isRootScreen = !canGoBack;
