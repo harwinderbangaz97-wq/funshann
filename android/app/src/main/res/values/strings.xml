@@ -1,6 +1,0 @@
-<resources>
-    <string name="app_name">Funshann</string>
-    <string name="title_activity_main">Funshann</string>
-    <string name="package_name">com.funshann.app</string>
-    <string name="custom_url_scheme">com.funshann.app</string>
-</resources>
