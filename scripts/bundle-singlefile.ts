@@ -77,6 +77,22 @@ const standaloneHtml = `<?xml version="1.0" encoding="UTF-8" ?>
     gtag('config', 'G-5MV7RJX0DN');
 //]]>
   </script>
+
+  <!-- Schema.org JSON-LD Structured Data -->
+  <script type="application/ld+json">
+//<![CDATA[
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Funshann",
+    "url": "https://funshann.blogspot.com/",
+    "description": "Funshann is a social platform to connect with people, share posts, discover content and chat with your community.",
+    "applicationCategory": "SocialNetworkingApplication",
+    "operatingSystem": "All",
+    "browserRequirements": "Requires JavaScript. Requires HTML5."
+  }
+//]]>
+  </script>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -650,7 +650,10 @@ export const signInWithGooglePopup = async (): Promise<{ success: boolean; user?
   } catch (error: any) {
     console.warn('Firebase Google Sign-In note:', error);
     let errMsg = error?.message || 'Google Sign-In failed or was cancelled.';
-    if (error?.code === 'auth/network-request-failed' || error?.message?.includes('network-request-failed')) {
+    if (error?.code === 'auth/unauthorized-domain' || error?.message?.includes('unauthorized-domain')) {
+      const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
+      errMsg = `Domain not authorized for Google Sign-In: "${currentHost}". Add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized domains, or use Email / Phone authentication.`;
+    } else if (error?.code === 'auth/network-request-failed' || error?.message?.includes('network-request-failed')) {
       errMsg = 'Google Sign-In popup request failed due to iframe restrictions. Please sign in using Email or Phone Number below, or open the app in a new tab.';
     } else if (error?.code === 'auth/popup-closed-by-user') {
       errMsg = 'Google Sign-In popup was closed before completing.';

@@ -257,7 +257,12 @@ export const WelcomeAuthScreen: React.FC<WelcomeAuthScreenProps> = ({
       }
     } catch (error: any) {
       console.error('Google Sign-In error:', error);
-      if (error?.code === 'auth/popup-closed-by-user') {
+      if (error?.code === 'auth/unauthorized-domain' || error?.message?.includes('unauthorized-domain')) {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'current domain';
+        setErrorMessage(
+          `Domain not authorized for Google Sign-In: "${currentHost}". To enable Google Sign-In, add "${currentHost}" to Firebase Console -> Authentication -> Settings -> Authorized domains. Alternatively, use Email/Password, Phone OTP, or Fast Login below.`
+        );
+      } else if (error?.code === 'auth/popup-closed-by-user') {
         setErrorMessage('Google Sign-In popup was closed. Please try again.');
       } else if (error?.code === 'auth/popup-blocked') {
         setErrorMessage('Google Sign-In popup was blocked by browser. Please allow popups or open the app in a new tab.');
