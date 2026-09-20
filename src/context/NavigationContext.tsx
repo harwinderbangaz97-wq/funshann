@@ -74,6 +74,17 @@ const initialNavState: NavigationState = {
   isEditProfileOpen: false,
 };
 
+const isNativeEnvironment = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(
+    w.cordova ||
+    w.Capacitor?.isNativePlatform?.() ||
+    w.AndroidBridge ||
+    (w.Android && typeof w.Android.closeApp === 'function')
+  );
+};
+
 const NavigationContext = createContext<NavigationContextType | null>(null);
 
 interface NavigationProviderProps {
@@ -257,16 +268,28 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     }
 
     // 6. At root screen (Home with no overlays)
+    if (!isNativeEnvironment()) {
+      // On web browsers: do not intercept or show "Press back again to exit Funshann"
+      // Allow the browser's normal Back behavior
+      return false;
+    }
+
     const now = Date.now();
     if (now - lastBackPressTimeRef.current < 2000) {
-      // User pressed back twice within 2 seconds -> Allow native browser / app exit
+      // User pressed back twice within 2 seconds in native app environment -> Allow native app exit
+      const nav = navigator as any;
+      if (nav.app && typeof nav.app.exitApp === 'function') {
+        nav.app.exitApp();
+      } else if (nav.device && typeof nav.device.exitApp === 'function') {
+        nav.device.exitApp();
+      }
       return false;
     } else {
       lastBackPressTimeRef.current = now;
       if (onShowToast) {
         onShowToast('Press back again to exit Funshann');
       }
-      // Push state again so history entry buffer remains intact
+      // Push state again so history entry buffer remains intact in native environment
       pushBrowserHistory();
       return true;
     }
@@ -302,7 +325,9 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     // Prime initial history state
     try {
       window.history.replaceState({ depth: 0, root: true }, '', window.location.href);
-      pushBrowserHistory();
+      if (isNativeEnvironment()) {
+        pushBrowserHistory();
+      }
     } catch {
       // ignore
     }
@@ -323,7 +348,24 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     // Listen for Cordova / Capacitor / WebView hardware back button
     const handleCordovaBackButton = (e: Event) => {
       e.preventDefault();
-      goBack();
+      if (checkCanGoBack(stateRef.current)) {
+        goBack();
+      } else {
+        const now = Date.now();
+        if (now - lastBackPressTimeRef.current < 2000) {
+          const nav = navigator as any;
+          if (nav.app && typeof nav.app.exitApp === 'function') {
+            nav.app.exitApp();
+          } else if (nav.device && typeof nav.device.exitApp === 'function') {
+            nav.device.exitApp();
+          }
+        } else {
+          lastBackPressTimeRef.current = now;
+          if (onShowToast) {
+            onShowToast('Press back again to exit Funshann');
+          }
+        }
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
