@@ -642,8 +642,38 @@ export const WelcomeAuthScreen: React.FC<WelcomeAuthScreenProps> = ({
               </div>
 
               {errorMessage && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 text-xs font-semibold leading-relaxed">
-                  {errorMessage}
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-medium leading-relaxed relative">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="flex-1 text-rose-700 font-medium leading-relaxed">{errorMessage}</p>
+                    <button
+                      type="button"
+                      onClick={() => setErrorMessage('')}
+                      className="text-rose-400 hover:text-rose-600 p-0.5 rounded-lg transition shrink-0 cursor-pointer"
+                      title="Dismiss"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {(errorMessage.includes('Domain not authorized') || errorMessage.includes('unauthorized-domain')) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const host = typeof window !== 'undefined' ? window.location.hostname : '';
+                        if (host) {
+                          navigator.clipboard?.writeText(host);
+                          setInfoMessage(`Copied "${host}" to clipboard! Paste it into Firebase Authorized Domains.`);
+                          setTimeout(() => setInfoMessage(''), 5000);
+                        }
+                      }}
+                      className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-100 hover:bg-rose-200/80 text-rose-900 font-semibold text-[11px] transition shadow-xs cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-rose-700" />
+                      <span>Copy Domain Name</span>
+                      <span className="text-[10px] font-mono text-rose-600 opacity-90 truncate max-w-[150px]">
+                        ({typeof window !== 'undefined' ? window.location.hostname : ''})
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 
