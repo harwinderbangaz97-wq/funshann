@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Funshann Blogger Theme</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 540px;
+      width: 100%;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 12px 0;
+      font-size: 24px;
+      color: #38bdf8;
+    }
+    p {
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 16px;
+      padding: 14px 28px;
+      border-radius: 12px;
+      text-decoration: none;
+      box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 12px;
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #334155;
+      box-shadow: none;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    .meta {
+      margin-top: 20px;
+      padding: 12px;
+      background: #0f172a;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #64748b;
+      text-align: left;
+    }
+    .meta div {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Funshann Blogger Theme</h1>
+    <p>Complete Standalone Blogger XML Theme template ready for Blogger Restore (Upload XML).</p>
+    
+    <a href="/funshann_blogger_theme.xml" download="funshann_blogger_theme.xml" class="btn" id="dlBtn">
+      📥 Download funshann_blogger_theme.xml (3.33 MB)
+    </a>
+
+    <a href="/blogger_standalone_funshann.html" download="blogger_standalone_funshann.html" class="btn btn-secondary">
+      📄 Download blogger_standalone_funshann.html
+    </a>
+
+    <div class="meta">
+      <div><strong>Filename:</strong> funshann_blogger_theme.xml</div>
+      <div><strong>File Size:</strong> 3,334,545 bytes (3.2 MB / 3.33 MB)</div>
+      <div><strong>Target:</strong> https://funshann.blogspot.com/</div>
+      <div><strong>Status:</strong> Validated XML 1.0 Blogger Theme (0 iframes, 0 external deps)</div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-trigger download if parameter ?download=true is present
+    if (window.location.search.includes('download=true')) {
+      const link = document.createElement('a');
+      link.href = '/funshann_blogger_theme.xml';
+      link.download = 'funshann_blogger_theme.xml';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>

@@ -6,7 +6,24 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     base: './',
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'force-download-headers',
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            const url = req.url ? req.url.split('?')[0] : '';
+            if (url === '/funshann_blogger_theme.xml') {
+              res.setHeader('Content-Disposition', 'attachment; filename="funshann_blogger_theme.xml"');
+            } else if (url === '/blogger_standalone_funshann.html') {
+              res.setHeader('Content-Disposition', 'attachment; filename="blogger_standalone_funshann.html"');
+            }
+            next();
+          });
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
